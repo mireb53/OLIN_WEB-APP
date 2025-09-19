@@ -30,6 +30,9 @@ class LoginController extends Controller
 
             $user = Auth::user(); // Get the currently logged-in user
 
+            // Update last login timestamp
+            $user->update(['last_login_at' => now()]);
+
             if ($user->role === 'admin') {
                 return redirect()->intended('/admin/dashboard'); 
             } elseif ($user->role === 'instructor') {

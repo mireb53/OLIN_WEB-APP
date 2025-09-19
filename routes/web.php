@@ -4,6 +4,9 @@ use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\Auth\RegisterController;
 use App\Http\Controllers\Auth\SocialLoginController;
 use App\Http\Controllers\Admin\AdminController;
+use App\Http\Controllers\Admin\AdminDashboardController;
+use App\Http\Controllers\Admin\UserManagementController;
+use App\Http\Controllers\Admin\CourseManagementController;
 use App\Http\Controllers\Instructor\InstructorController;
 use App\Http\Controllers\Instructor\CourseController;
 use App\Http\Controllers\Instructor\MaterialController;
@@ -70,7 +73,41 @@ Route::middleware(['auth:web', 'verified'])->group(function () {
 
 // Admin specific routes (requires authentication AND admin role AND verification)
 Route::middleware(['auth:web', 'role:admin', 'verified'])->group(function () {
-    Route::get('/admin/dashboard', [AdminController::class, 'index'])->name('admin.dashboard');
+    // Admin Dashboard routes
+    Route::get('/admin/dashboard', [AdminDashboardController::class, 'index'])->name('admin.dashboard');
+    Route::get('/admin/dashboard/data', [AdminDashboardController::class, 'getDashboardData'])->name('admin.dashboard.data');
+    Route::get('/admin/dashboard/chart-data', [AdminDashboardController::class, 'getChartData'])->name('admin.dashboard.chart-data');
+    
+    // User Management routes
+    Route::get('/admin/user-management', [UserManagementController::class, 'index'])->name('admin.user_management');
+    Route::get('/admin/users', [UserManagementController::class, 'index'])->name('admin.users.index');
+    Route::get('/admin/users/create', [UserManagementController::class, 'create'])->name('admin.users.create');
+    Route::post('/admin/users', [UserManagementController::class, 'store'])->name('admin.users.store');
+    Route::get('/admin/users/{user}', [UserManagementController::class, 'show'])->name('admin.users.show');
+    Route::get('/admin/users/{user}/edit', [UserManagementController::class, 'edit'])->name('admin.users.edit');
+    Route::get('/admin/users/{user}/permissions', [UserManagementController::class, 'permissions'])->name('admin.users.permissions');
+    Route::put('/admin/users/{user}', [UserManagementController::class, 'update'])->name('admin.users.update');
+    Route::delete('/admin/users/{user}', [UserManagementController::class, 'destroy'])->name('admin.users.destroy');
+    Route::patch('/admin/users/{user}/toggle-status', [UserManagementController::class, 'toggleStatus'])->name('admin.users.toggle-status');
+    Route::get('/admin/users/search', [UserManagementController::class, 'search'])->name('admin.users.search');
+    
+    // User Management 2FA routes
+    Route::post('/admin/users/request-2fa', [UserManagementController::class, 'request2FACode'])->name('admin.users.request-2fa');
+    Route::post('/admin/users/verify-2fa', [UserManagementController::class, 'verify2FACode'])->name('admin.users.verify-2fa');
+    
+    // Other admin routes (keeping existing routes for now)
+    Route::get('/admin/account', [AdminController::class, 'account'])->name('admin.account');
+    Route::get('/admin/settings', [AdminController::class, 'settings'])->name('admin.settings');
+    Route::get('/admin/reports-logs', [AdminController::class, 'reportsLogs'])->name('admin.reports_logs');
+    
+    // Course Management routes
+    Route::get('/admin/course-management', [CourseManagementController::class, 'index'])->name('admin.course_management');
+    Route::get('/admin/courses', [CourseManagementController::class, 'index'])->name('admin.courses.index');
+    Route::get('/admin/help', [AdminController::class, 'help'])->name('admin.help');
+    
+    // Admin 2FA routes (for admin account management)
+    Route::post('/admin/request-2fa', [AdminController::class, 'request2FACode'])->name('admin.request-2fa');
+    Route::post('/admin/verify-2fa', [AdminController::class, 'verify2FACode'])->name('admin.verify-2fa');
 });
 
 

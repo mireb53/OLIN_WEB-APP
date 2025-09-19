@@ -48,6 +48,10 @@ class SocialLoginController extends Controller
                     $user->save();
                     Log::info('Google account linked to existing user: ' . $user->email);
                 }
+                
+                // Update last login timestamp
+                $user->update(['last_login_at' => now()]);
+                
                 Auth::login($user, true); // Log in the user, "true" for remember me
                 Log::info('User logged in via Google: ' . $user->email);
 
@@ -60,6 +64,8 @@ class SocialLoginController extends Controller
                     'password' => Hash::make(Str::random(24)), // Generate a random password for social users
                     'role' => 'instructor', // Default role for new social sign-ups
                     'email_verified_at' => now(), // Assume email is verified by Google
+                    'status' => 'active', // Set default status for new users
+                    'last_login_at' => now(), // Set login timestamp
                 ]);
                 Auth::login($user, true);
                 Log::info('New user registered and logged in via Google: ' . $user->email);

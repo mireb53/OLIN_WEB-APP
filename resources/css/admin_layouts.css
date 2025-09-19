@@ -1,0 +1,117 @@
+body {
+      font-family: "Inter", sans-serif;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+
+    /* Sidebar (design only) */
+    #sidebar, .modern-sidebar {
+      background: linear-gradient(180deg, #1c2a38 0%, #101c26 100%);
+      border-right: 1px solid rgba(255, 255, 255, 0.05);
+      box-shadow: 4px 0 20px rgba(0, 0, 0, 0.2);
+    }
+
+    .sidebar-nav {
+      padding: 24px 0;
+      flex: 1;
+    }
+
+    .nav-section {
+      margin-bottom: 28px;
+    }
+
+    .nav-section-title {
+      color: #64748b;
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 1.2px;
+      margin-bottom: 12px;
+      padding: 0 24px;
+    }
+
+    .nav-item {
+      display: flex;
+      align-items: center;
+      padding: 10px 24px;
+      color: #94a3b8;
+      text-decoration: none;
+      transition: all 0.3s ease;
+      position: relative;
+      border-radius: 6px;
+    }
+
+    .nav-item:hover {
+      background-color: rgba(16, 185, 129, 0.1);
+      color: #e2e8f0;
+      transform: translateX(4px);
+    }
+
+    .nav-item-active {
+      background: linear-gradient(90deg, #10B981 0%, rgba(16, 185, 129, 0.1) 100%);
+      color: white;
+      font-weight: 600;
+    }
+
+    .nav-item-active::before {
+      content: '';
+      position: absolute;
+      left: 0;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 4px;
+      height: 80%;
+      background-color: #10B981;
+      border-radius: 0 4px 4px 0;
+    }
+
+    .nav-item-active:hover {
+      transform: none;
+    }
+
+    .nav-icon {
+      width: 24px;
+      height: 24px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-right: 16px;
+      font-size: 18px;
+    }
+
+    .nav-text {
+      font-weight: 500;
+      font-size: 15px;
+      flex: 1;
+    }
+
+    .nav-indicator {
+      display: none;
+    }
+
+    .modern-sidebar::-webkit-scrollbar {
+      width: 6px;
+    }
+
+    .modern-sidebar::-webkit-scrollbar-track {
+      background: transparent;
+    }
+
+    .modern-sidebar::-webkit-scrollbar-thumb {
+      background: rgba(255, 255, 255, 0.2);
+      border-radius: 3px;
+    }
+
+    .modern-sidebar::-webkit-scrollbar-thumb:hover {
+      background: rgba(255, 255, 255, 0.4);
+    }
+
+    @media (max-width: 768px) {
+      .modern-sidebar {
+        box-shadow: 8px 0 32px rgba(0, 0, 0, 0.3);
+      }
+    }
+
+    .profile-icon {
+      background: linear-gradient(135deg, #1c2a38 80%, #10B981 20%);
+    }

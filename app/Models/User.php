@@ -12,11 +12,16 @@ class User extends Authenticatable implements MustVerifyEmail
 {
     use HasFactory, Notifiable, HasApiTokens;
 
+    protected $attributes = [
+        'status' => 'active',
+    ];
+
     protected $fillable = [
         'name',
         'email',
         'password',
         'role',
+        'status',
         'program_id',
         'section_id',
         'email_verification_code',
@@ -30,6 +35,7 @@ class User extends Authenticatable implements MustVerifyEmail
         'birth_date',
         'gender',
         'address',
+        'last_login_at',
     ];
 
     protected $hidden = [
@@ -44,6 +50,7 @@ class User extends Authenticatable implements MustVerifyEmail
             'password' => 'hashed',
             'email_verification_code_expires_at' => 'datetime',
             'birth_date' => 'date',
+            'last_login_at' => 'datetime',
         ];
     }
 

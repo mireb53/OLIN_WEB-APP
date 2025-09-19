@@ -40,8 +40,10 @@ class RegisterController extends Controller
             'email' => $request->email,
             'password' => Hash::make($request->password),
             'role' => 'instructor',
+            'status' => 'active', // Set default status
             'email_verification_code' => $verificationCode, // Save the code
             'email_verification_code_expires_at' => $expiresAt, // Save expiry
+            'last_login_at' => now(), // Set initial login timestamp
         ]);
 
         // 3. Log the user in immediately after registration (optional, but common)

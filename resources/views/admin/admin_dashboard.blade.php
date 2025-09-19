@@ -18,7 +18,7 @@
                     <div class="text-slate-500 mb-6 font-semibold text-lg">Total Courses</div>
                     <div class="text-6xl font-extrabold text-slate-900 my-4">{{ $stats['total_courses'] }}</div>
                     <div class="text-sm text-slate-600 mb-4">{{ $stats['active_courses'] }} Active</div>
-                    <a href="#" class="bg-gradient-to-r from-slate-900 to-slate-700 text-white font-semibold py-4 px-6 rounded-xl inline-block transition-all duration-300 uppercase tracking-wider hover:from-slate-700 hover:to-slate-900 hover:shadow-xl">
+                    <a href="{{ route('admin.course_management') }}" class="bg-gradient-to-r from-slate-900 to-slate-700 text-white font-semibold py-4 px-6 rounded-xl inline-block transition-all duration-300 uppercase tracking-wider hover:from-slate-700 hover:to-slate-900 hover:shadow-xl">
                         View All Courses
                     </a>
                 </div>

@@ -1,0 +1,150 @@
+
+
+
+
+/* Header */
+.page-header { margin-bottom: 2rem; }
+.page-title {
+    font-size: 2rem;
+    font-weight: 600;
+    color: #334155;
+    margin-bottom: 0.5rem;
+}
+.page-description { color: #64748b; font-style: italic; }
+
+/* Controls */
+.controls-section {
+    background: white;
+    border-radius: 8px;
+    padding: 1.5rem;
+    margin-bottom: 1.5rem;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+}
+.controls-row {
+    display: flex;
+    gap: 1rem;
+    align-items: center;
+    flex-wrap: wrap;
+}
+.search-box { flex: 1; min-width: 250px; }
+.search-box input {
+    width: 100%;
+    padding: 0.75rem;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    font-size: 1rem;
+}
+.filter-select, .sort-select {
+    padding: 0.75rem;
+    padding-right: 2rem; /* space for arrow */
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    background: white;
+    min-width: 160px;
+}
+.btn-primary {
+    background: #667eea;
+    color: white;
+    padding: 0.75rem 1.5rem;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-weight: 500;
+    transition: background 0.3s ease;
+}
+.btn-primary:hover { background: #556ee0; }
+
+/* Table */
+.course-table-container {
+    background: white;
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+}
+.course-table { width: 100%; border-collapse: collapse; }
+.course-table th {
+    background: #f8fafc;
+    padding: 1rem;
+    text-align: left;
+    font-weight: 600;
+    color: #334155;
+    border-bottom: 2px solid #e2e8f0;
+}
+.course-table td { padding: 1rem; border-bottom: 1px solid #e2e8f0; }
+.course-table tr:hover { background: #f3f4f6; }
+
+/* Status */
+.status-badge {
+    padding: 0.4rem 0.8rem;
+    border-radius: 8px;
+    font-size: 0.8rem;
+    font-weight: 500;
+}
+.status-active { background: #dcfce7; color: #16a34a; }
+.status-archived { background: #fef2f2; color: #dc2626; }
+
+/* Actions */
+.action-buttons { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+.btn-small {
+    padding: 0.5rem 0.75rem;
+    border: 1px solid #e2e8f0;
+    background: white;
+    color: #374151;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.8rem;
+    text-decoration: none;
+    transition: all 0.2s ease;
+}
+.btn-small:hover {
+    background: #f9fafb;
+    border-color: #667eea;
+    color: #667eea;
+}
+
+/* Pagination */
+.pagination { display: flex; justify-content: center; margin-top: 2rem; }
+.pagination button {
+    padding: 0.6rem 1rem;
+    margin: 0 0.25rem;
+    border: 1px solid #e2e8f0;
+    background: white;
+    color: #374151;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+.pagination button.active,
+.pagination button:hover {
+    background: #667eea;
+    color: white;
+    border-color: #667eea;
+}
+.pagination button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+/* Status Badges */
+.status-badge {
+    padding: 0.35rem 0.75rem;
+    border-radius: 8px;
+    font-size: 0.8rem;
+    font-weight: 500;
+}
+
+/* Existing statuses */
+.status-active {
+    background: #dcfce7;
+    color: #16a34a;
+}
+.status-archived {
+    background: #fef2f2;
+    color: #dc2626;
+}
+
+/* 🔹 New Pending Status */
+.status-pending {
+    background: #fef9c3; /* light yellow */
+    color: #ca8a04;      /* amber-600 */
+}

@@ -2,11 +2,12 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
-use App\Http\Controllers\Controller;
+use Illuminate\Support\Facades\Mail;
 use App\Models\User;
 use App\Models\Course;
 use App\Models\Assessment;
@@ -15,134 +16,147 @@ use Carbon\Carbon;
 
 class AdminController extends Controller
 {
-    public function index()
+    /**
+     * ======================
+     *  Two-Factor Authentication
+     * ======================
+     */
+
+    // Request 2FA code for sensitive actions
+    public function request2FACode(Request $request)
     {
-        // Get dashboard statistics
-        $stats = $this->getDashboardStats();
-        $recentActivities = $this->getRecentActivities();
-        $systemHealth = $this->getSystemHealth();
+        $user = Auth::user();
+        $code = rand(100000, 999999);
 
-        return view('admin.dashboard', compact('stats', 'recentActivities', 'systemHealth'));
-    }
+        // Store code with expiration (5 min + 5 sec)
+        session([
+            'admin_2fa_code' => $code,
+            'admin_2fa_expires' => now()->addMinutes(5)->addSeconds(5),
+        ]);
 
-    private function getDashboardStats()
-    {
-        return [
-            'total_users' => User::count(),
-            'total_courses' => Course::count(),
-            'total_instructors' => User::where('role', 'instructor')->count(),
-            'total_students' => User::where('role', 'student')->count(),
-            'active_courses' => Course::where('status', 'active')->count(),
-            'total_assessments' => Assessment::count(),
-            'submitted_assessments' => SubmittedAssessment::count(),
-            'recent_registrations' => User::where('created_at', '>=', Carbon::now()->subDays(7))->count(),
-        ];
-    }
-
-    private function getRecentActivities()
-    {
-        $activities = [];
-
-        // Recent user registrations
-        $recentUsers = User::orderBy('created_at', 'desc')->limit(3)->get();
-        foreach ($recentUsers as $user) {
-            $activities[] = [
-                'type' => 'user_registration',
-                'description' => "New {$user->role} '{$user->name}' registered",
-                'time' => $user->created_at,
-                'icon' => 'fas fa-user-plus',
-            ];
-        }
-
-        // Recent course creations
-        $recentCourses = Course::with('instructor')->orderBy('created_at', 'desc')->limit(3)->get();
-        foreach ($recentCourses as $course) {
-            $activities[] = [
-                'type' => 'course_creation',
-                'description' => "Course '{$course->title}' created by {$course->instructor->name}",
-                'time' => $course->created_at,
-                'icon' => 'fas fa-book',
-            ];
-        }
-
-        // Recent assessment submissions
-        $recentSubmissions = SubmittedAssessment::with(['student', 'assessment'])
-            ->orderBy('created_at', 'desc')->limit(3)->get();
-        foreach ($recentSubmissions as $submission) {
-            $activities[] = [
-                'type' => 'assessment_submission',
-                'description' => "{$submission->student->name} submitted '{$submission->assessment->title}'",
-                'time' => $submission->created_at,
-                'icon' => 'fas fa-file-alt',
-            ];
-        }
-
-        // Sort all activities by time (most recent first)
-        usort($activities, function($a, $b) {
-            return $b['time']->timestamp - $a['time']->timestamp;
+        // Send code via email
+        Mail::raw("Your admin verification code is: $code", function ($message) use ($user) {
+            $message->to($user->email)
+                    ->from(config('mail.from.address'), config('mail.from.name'))
+                    ->subject('Admin Verification Code');
         });
 
-        return array_slice($activities, 0, 5); // Return top 5 activities
+        return response()->json(['success' => true]);
     }
 
-    private function getSystemHealth()
+    // Verify 2FA code before allowing sensitive actions
+    public function verify2FACode(Request $request)
     {
-        // Calculate storage usage
-        $totalStorage = 20 * 1024 * 1024 * 1024; // 20 GB in bytes
-        $usedStorage = $this->calculateUsedStorage();
-        $storagePercentage = ($usedStorage / $totalStorage) * 100;
+        $inputCode = $request->input('code');
+        $storedCode = session('admin_2fa_code');
+        $expiresAt = session('admin_2fa_expires');
 
-        return [
-            'storage_used' => $this->formatBytes($usedStorage),
-            'storage_total' => $this->formatBytes($totalStorage),
-            'storage_percentage' => round($storagePercentage, 1),
-            'server_uptime' => $this->getServerUptime(),
-            'last_backup' => $this->getLastBackupTime(),
+        if (!$storedCode || !$expiresAt || now()->isAfter($expiresAt)) {
+            return response()->json(['success' => false, 'message' => 'Code expired or invalid']);
+        }
+
+        if ($inputCode == $storedCode) {
+            session()->forget(['admin_2fa_code', 'admin_2fa_expires']);
+            session(['admin_2fa_verified' => true, 'admin_2fa_verified_at' => now()]);
+            return response()->json(['success' => true]);
+        }
+
+        return response()->json(['success' => false, 'message' => 'Invalid code']);
+    }
+
+    /**
+     * ======================
+     *  Admin Account Management
+     * ======================
+     */
+
+    public function account()
+    {
+        $admin = Auth::user();
+        return view('admin.admin_account', compact('admin'));
+    }
+
+    public function settings()
+    {
+        $settings = [
+            'system_name' => 'OLIN Learning Management System',
+            'version' => '1.0.0',
+            'last_updated' => Carbon::now()->subDays(7),
+            'maintenance_mode' => false,
+            'registration_enabled' => true,
+            'email_verification_required' => true,
         ];
+
+        return view('admin.settings', compact('settings'));
     }
 
-    private function calculateUsedStorage()
+    /**
+     * ======================
+     *  Reports & Logs
+     * ======================
+     */
+
+    public function reportsLogs()
     {
-        try {
-            $publicSize = $this->getDirectorySize(public_path());
-            $storageSize = $this->getDirectorySize(storage_path());
-            return $publicSize + $storageSize;
-        } catch (\Exception $e) {
-            return 15.2 * 1024 * 1024 * 1024; // Default to 15.2 GB if calculation fails
-        }
+        $logs = [
+            [
+                'id' => 1,
+                'type' => 'System',
+                'level' => 'info',
+                'message' => 'User login successful',
+                'timestamp' => Carbon::now()->subMinutes(15),
+                'user_id' => 5,
+            ],
+            [
+                'id' => 2,
+                'type' => 'Security',
+                'level' => 'warning',
+                'message' => 'Failed login attempt',
+                'timestamp' => Carbon::now()->subHours(2),
+                'user_id' => null,
+            ],
+        ];
+
+        return view('admin.reports_logs', compact('logs'));
     }
 
-    private function getDirectorySize($directory)
+    /**
+     * ======================
+     *  Help & Support
+     * ======================
+     */
+
+    public function help()
     {
-        $size = 0;
-        if (is_dir($directory)) {
-            foreach (new \RecursiveIteratorIterator(new \RecursiveDirectoryIterator($directory)) as $file) {
-                $size += $file->getSize();
-            }
-        }
-        return $size;
+        $helpTopics = [
+            'Getting Started' => [
+                'System Overview',
+                'User Management',
+                'Course Management',
+                'Assessment Creation',
+            ],
+            'User Management' => [
+                'Adding Users',
+                'Managing Roles',
+                'User Permissions',
+                'Account Settings',
+            ],
+            'Course Management' => [
+                'Creating Courses',
+                'Managing Content',
+                'Student Enrollment',
+                'Progress Tracking',
+            ],
+            'Reports & Analytics' => [
+                'Generating Reports',
+                'System Logs',
+                'Performance Metrics',
+                'Data Export',
+            ],
+        ];
+
+        return view('admin.help', compact('helpTopics'));
     }
 
-    private function formatBytes($size, $precision = 2)
-    {
-        $units = ['B', 'KB', 'MB', 'GB', 'TB'];
-        for ($i = 0; $size > 1024 && $i < count($units) - 1; $i++) {
-            $size /= 1024;
-        }
-        return round($size, $precision) . ' ' . $units[$i];
-    }
-
-    private function getServerUptime()
-    {
-        if (function_exists('sys_getloadavg')) {
-            return '99.9%'; // Placeholder for actual uptime calculation
-        }
-        return 'N/A';
-    }
-
-    private function getLastBackupTime()
-    {
-        // This would typically check your backup system
-        return Carbon::now()->subHours(2); // Placeholder: 2 hours ago
-    }
+    // Course Management functionality moved to CourseManagementController
 }
