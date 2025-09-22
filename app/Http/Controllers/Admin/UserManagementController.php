@@ -7,37 +7,115 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Session;
 use App\Http\Controllers\Controller;
 use App\Models\User;
+use App\Models\School;
 use Carbon\Carbon;
+use Exception;
+use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 
 class UserManagementController extends Controller
 {
-    /**
-     * Display the user management page with all users
-     */
-    public function index()
-    {
-        $users = User::with('program', 'section')
-            ->orderBy('created_at', 'desc')
-            ->get();
-        
-        $usersByRole = [
-            'admin' => User::where('role', 'admin')->count(),
-            'instructor' => User::where('role', 'instructor')->count(),
-            'student' => User::where('role', 'student')->count(),
-        ];
+    use AuthorizesRequests;
 
-        $totalUsers = User::count();
-        $activeUsers = User::where('status', 'active')->count();
-        $inactiveUsers = User::where('status', 'inactive')->count();
+    /**
+     * Display the user management page with school-filtered users
+     */
+    public function index(Request $request)
+    {
+        $role = $request->input('role', 'instructor');
+        $status = $request->input('status', '');
+        $search = $request->input('search', '');
+        $schoolFilter = $request->input('school_id', ''); // For SuperAdmin school filtering
+
+        $actor = Auth::user();
+        
+        // Authorization check
+        if (!$actor || (!$actor->isSuperAdmin() && !$actor->isSchoolAdmin())) {
+            abort(403, 'Unauthorized access to user management');
+        }
+
+        $query = User::query();
+        $activeSchool = null;
+        $schools = collect();
+        
+        if ($actor->isSuperAdmin()) {
+            // Super Admin: Can see all schools and filter by school
+            $schools = School::orderBy('name')->get();
+            
+            // Determine active school for filtering
+            $activeSchoolId = $schoolFilter ?: Session::get('active_school');
+            if ($activeSchoolId) {
+                $activeSchool = School::find($activeSchoolId);
+                if ($activeSchool) {
+                    $query->where('school_id', $activeSchoolId);
+                    // Update session to remember school selection
+                    Session::put('active_school', $activeSchoolId);
+                }
+            }
+            
+            // If no school is selected, and schools exist, select the first one
+            if (!$activeSchool && $schools->isNotEmpty()) {
+                $activeSchool = $schools->first();
+                $query->where('school_id', $activeSchool->id);
+                Session::put('active_school', $activeSchool->id);
+            }
+            
+        } elseif ($actor->isSchoolAdmin()) {
+            // School Admin: Only see users from their assigned school
+            if (!$actor->school_id) {
+                abort(422, 'No school assigned to your admin account. Please contact Super Admin.');
+            }
+            
+            $activeSchool = $actor->school;
+            $schools = collect([$activeSchool]); // Only their school
+            $query->where('school_id', $actor->school_id);
+            
+            // School admins cannot see super admins
+            $query->where('role', '!=', User::ROLE_SUPER_ADMIN);
+        }
+        
+        // Apply role filter
+        if ($role && $role !== 'all') {
+            if ($role === 'admin') {
+                if ($actor->isSuperAdmin()) {
+                    $query->whereIn('role', [User::ROLE_SUPER_ADMIN, User::ROLE_SCHOOL_ADMIN]);
+                } else {
+                    // School admins can only see other school admins from their school
+                    $query->where('role', User::ROLE_SCHOOL_ADMIN);
+                }
+            } else {
+                $query->where('role', $role);
+            }
+        }
+        
+        // Apply status filter
+        if ($status && $status !== 'all' && $status !== '') {
+            $query->where('status', $status);
+        }
+        
+        // Apply search filter
+        if ($search) {
+            $query->where(function($q) use ($search) {
+                $q->where('name', 'like', "%$search%")
+                  ->orWhere('email', 'like', "%$search%");
+            });
+        }
+        
+        $users = $query->with('school')
+                      ->orderBy('created_at', 'desc')
+                      ->paginate(15)
+                      ->appends($request->except('page'));
 
         return view('admin.user_management', compact(
             'users', 
-            'usersByRole', 
-            'totalUsers', 
-            'activeUsers', 
-            'inactiveUsers'
+            'role', 
+            'status', 
+            'search', 
+            'schools', 
+            'activeSchool',
+            'schoolFilter'
         ));
     }
 
@@ -46,7 +124,9 @@ class UserManagementController extends Controller
      */
     public function create()
     {
-        return view('admin.users.create');
+        $this->authorize('create', User::class);
+        $schools = School::orderBy('name')->get();
+        return view('admin.users.create', compact('schools'));
     }
 
     /**
@@ -54,14 +134,34 @@ class UserManagementController extends Controller
      */
     public function store(Request $request)
     {
+        $this->authorize('create', User::class);
+
+        $actor = Auth::user();
+
         $request->validate([
             'name' => 'required|string|max:255',
             'email' => 'required|string|email|max:255|unique:users',
-            'role' => 'required|in:admin,instructor,student',
+            'role' => 'required|in:super_admin,school_admin,instructor,student',
             'password' => 'required|string|min:8|confirmed',
             'program_id' => 'nullable|exists:programs,id',
             'section_id' => 'nullable|exists:sections,id',
+            'school_id' => 'nullable|exists:schools,id'
         ]);
+
+        // NEW: Role assignment validation
+        if ($request->role === User::ROLE_SUPER_ADMIN && !$actor->isSuperAdmin()) {
+            return redirect()->back()->withInput()->with('error', 'Only a Super Admin can create another Super Admin.');
+        }
+
+        // Determine school assignment
+        $schoolId = null;
+        if ($actor && $actor->isSuperAdmin()) {
+            // Super Admin: Use active_school session
+            $schoolId = Session::get('active_school') ?: $request->school_id;
+        } elseif ($actor && $actor->isSchoolAdmin()) {
+            // School Admin: Force their own school
+            $schoolId = $actor->school_id;
+        }
 
         $user = User::create([
             'name' => $request->name,
@@ -72,6 +172,7 @@ class UserManagementController extends Controller
             'section_id' => $request->section_id,
             'email_verified_at' => now(), // Auto-verify for admin created users
             'status' => 'active',
+            'school_id' => $schoolId,
         ]);
 
         return redirect()->route('admin.users.index')
@@ -101,14 +202,37 @@ class UserManagementController extends Controller
      */
     public function update(Request $request, User $user)
     {
+        $this->authorize('update', $user);
+
+        $actor = Auth::user();
+
         $request->validate([
             'name' => 'required|string|max:255',
             'email' => 'required|string|email|max:255|unique:users,email,' . $user->id,
-            'role' => 'required|in:admin,instructor,student',
+            'role' => 'required|in:super_admin,school_admin,instructor,student',
             'program_id' => 'nullable|exists:programs,id',
             'section_id' => 'nullable|exists:sections,id',
-            'status' => 'required|in:active,inactive',
+            'status' => 'required|in:active,inactive,suspended',
+            'school_id' => 'nullable|exists:schools,id'
         ]);
+
+        // NEW: Role assignment validation
+        if ($request->role === User::ROLE_SUPER_ADMIN && !$actor->isSuperAdmin()) {
+            return redirect()->back()->withInput()->with('error', 'Only a Super Admin can assign the Super Admin role.');
+        }
+        if ($user->role === User::ROLE_SUPER_ADMIN && $actor->isSchoolAdmin()) {
+            return redirect()->back()->withInput()->with('error', 'You cannot edit a Super Admin.');
+        }
+
+        // School assignment logic
+        $schoolId = null;
+        if ($actor && $actor->isSuperAdmin()) {
+            // Super Admin: Use active_school session or allow override
+            $schoolId = $request->school_id ?: Session::get('active_school');
+        } elseif ($actor && $actor->isSchoolAdmin()) {
+            // School Admin: Keep user in same school
+            $schoolId = $user->school_id;
+        }
 
         $user->update([
             'name' => $request->name,
@@ -117,6 +241,7 @@ class UserManagementController extends Controller
             'program_id' => $request->program_id,
             'section_id' => $request->section_id,
             'status' => $request->status,
+            'school_id' => $schoolId,
         ]);
 
         // Update password if provided
@@ -135,15 +260,127 @@ class UserManagementController extends Controller
     }
 
     /**
+     * Reset the specified user's password.
+     */
+    public function resetPassword(Request $request, User $user)
+    {
+        $this->authorize('resetPassword', $user);
+
+        $request->validate([
+            'password' => 'required|string|min:8|confirmed',
+        ]);
+
+        $user->update([
+            'password' => Hash::make($request->password),
+        ]);
+
+        return redirect()->route('admin.user_management')
+            ->with('success', 'Password reset successfully.');
+    }
+
+    /**
+     * Bulk import students from CSV/Excel file
+     */
+    public function bulkImport(Request $request)
+    {
+        $actor = Auth::user();
+        $this->authorize('create', User::class); // permission to bulk import
+
+        $request->validate([
+            'file' => 'required|file|mimes:csv,xlsx,xls|max:2048'
+        ]);
+
+        $file = $request->file('file');
+        $path = $file->getRealPath();
+        
+        try {
+            $data = [];
+            
+            if ($file->getClientOriginalExtension() === 'csv') {
+                $csvData = array_map('str_getcsv', file($path));
+                $header = array_shift($csvData);
+                
+                foreach ($csvData as $row) {
+                    $data[] = array_combine($header, $row);
+                }
+            }
+
+            $imported = 0;
+            $errors = [];
+
+            foreach ($data as $row) {
+                try {
+                    if (empty($row['Name']) || empty($row['Email']) || empty($row['Password'])) {
+                        $errors[] = "Missing required fields for row: " . json_encode($row);
+                        continue;
+                    }
+
+                    if (User::where('email', $row['Email'])->exists()) {
+                        $errors[] = "Email {$row['Email']} already exists";
+                        continue;
+                    }
+
+                    // Determine school assignment
+                    $schoolId = null;
+                    if ($actor && $actor->isSuperAdmin()) {
+                        // Super Admin: Use active_school session
+                        $schoolId = Session::get('active_school') ?: $request->school_id;
+                    } elseif ($actor && $actor->isSchoolAdmin()) {
+                        // School Admin: Force their own school
+                        $schoolId = $actor->school_id;
+                    }
+
+                    User::create([
+                        'name' => $row['Name'],
+                        'email' => $row['Email'],
+                        'password' => Hash::make($row['Password']),
+                        'role' => 'student',
+                        'status' => 'active',
+                        'email_verified_at' => now(),
+                        'school_id' => $schoolId,
+                    ]);
+
+                    $imported++;
+                } catch (Exception $e) {
+                    $errors[] = "Error importing {$row['Email']}: " . $e->getMessage();
+                }
+            }
+
+            $message = "Successfully imported {$imported} students.";
+            if (!empty($errors)) {
+                $message .= " Errors: " . implode(', ', $errors);
+            }
+
+            return redirect()->route('admin.user_management', ['role' => 'student'])
+                ->with('success', $message);
+
+        } catch (Exception $e) {
+            return redirect()->route('admin.user_management')
+                ->with('error', 'Error processing file: ' . $e->getMessage());
+        }
+    }
+
+    /**
      * Remove the specified user from storage
      */
     public function destroy(User $user)
     {
+        $this->authorize('delete', $user);
         // Prevent deleting the currently logged-in admin
         if ($user->id === Auth::id()) {
             return redirect()->route('admin.users.index')
                 ->with('error', 'You cannot delete your own account.');
         }
+
+        // Check if the user is an instructor with courses
+        $coursesCount = DB::table('courses')->where('instructor_id', $user->id)->count();
+        if ($coursesCount > 0) {
+            return redirect()->route('admin.users.index')
+                ->with('error', 'Cannot delete this user because they are assigned as an instructor to one or more courses. Please reassign these courses to another instructor first.');
+        }
+
+        // Check for other possible relationships (customize based on your database structure)
+        // Add more checks here if needed for other relationships
 
         $user->delete();
 
@@ -156,6 +393,7 @@ class UserManagementController extends Controller
      */
     public function toggleStatus(User $user)
     {
+        $this->authorize('update', $user);
         $user->status = $user->status === 'active' ? 'inactive' : 'active';
         $user->save();
 
@@ -170,46 +408,31 @@ class UserManagementController extends Controller
      */
     public function search(Request $request)
     {
-        $query = User::with('program', 'section');
+        $role = $request->input('role', 'instructor');
+        $status = $request->input('status', '');
+        $search = $request->input('search', '');
 
-        // Search by name or email
-        if ($request->filled('search')) {
-            $search = $request->search;
+        $query = User::query();
+        if ($role && $role !== 'all') {
+            if ($role === 'admin') {
+                $query->whereIn('role', [User::ROLE_SUPER_ADMIN, User::ROLE_SCHOOL_ADMIN]);
+            } else {
+                $query->where('role', $role);
+            }
+        }
+        if ($status && $status !== 'all' && $status !== '') {
+            $query->where('status', $status);
+        }
+        if ($search) {
             $query->where(function($q) use ($search) {
-                $q->where('name', 'LIKE', "%{$search}%")
-                  ->orWhere('email', 'LIKE', "%{$search}%");
+                $q->where('name', 'like', "%$search%")
+                  ->orWhere('email', 'like', "%$search%");
             });
         }
-
-        // Filter by role
-        if ($request->filled('role') && $request->role !== 'all') {
-            $query->where('role', $request->role);
-        }
-
-        // Filter by status
-        if ($request->filled('status') && $request->status !== 'all') {
-            $query->where('status', $request->status);
-        }
-
-        $users = $query->orderBy('created_at', 'desc')->get();
         
-        $usersByRole = [
-            'admin' => User::where('role', 'admin')->count(),
-            'instructor' => User::where('role', 'instructor')->count(),
-            'student' => User::where('role', 'student')->count(),
-        ];
+        $users = $query->orderBy('created_at', 'desc')->paginate(15)->appends($request->except('page'));
 
-        $totalUsers = User::count();
-        $activeUsers = User::where('status', 'active')->count();
-        $inactiveUsers = User::where('status', 'inactive')->count();
-
-        return view('admin.user_management', compact(
-            'users', 
-            'usersByRole', 
-            'totalUsers', 
-            'activeUsers', 
-            'inactiveUsers'
-        ));
+        return view('admin.user_management', compact('users', 'role', 'status', 'search'));
     }
 
     /**

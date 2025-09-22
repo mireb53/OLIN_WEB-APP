@@ -123,5 +123,8 @@
       });
     });
   </script>
+  
+  {{-- Page specific scripts pushed from child views --}}
+  @stack('scripts')
 </body>
 </html>

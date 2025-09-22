@@ -1,168 +1,95 @@
-/* User Avatar */
-.user-avatar {
-    width: 35px;
-    height: 35px;
-    border-radius: 50%;
+/* user_management.css */
+
+/* Tabs styling */
+.tabs .tab-item {
+    padding: 0.5rem 1rem;
+    border-bottom: 2px solid transparent;
+    transition: all 0.2s;
+    text-decoration: none;
+    display: inline-block;
+}
+
+.tabs .tab-item a {
+    text-decoration: none;
+    color: inherit;
+}
+
+.tabs .tab-item.active,
+.tabs .tab-item.active a {
+    border-color: #4f46e5; /* Indigo-600 */
+    color: #4f46e5;
+    font-weight: 600;
+}
+
+/* Modal overrides */
+.modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0,0,0,0.5);
     display: flex;
     align-items: center;
     justify-content: center;
-    font-weight: bold;
-    font-size: 0.9rem;
-    color: white;
-    margin-right: 0.75rem;
+    z-index: 50;
 }
 
-/* Role Badges */
-.role-badge {
-    padding: 0.4rem 0.8rem;
-    border-radius: 8px;
-    font-size: 0.8rem;
-    font-weight: 500;
-}
-.role-admin {
-    background: #fef2f2;
-    color: #dc2626;
-}
-.role-instructor {
-    background: #dbeafe;
-    color: #2563eb;
-}
-.role-student {
-    background: #dcfce7;
-    color: #16a34a;
-}
-
-/* Page Header */
-.page-header { margin-bottom: 2rem; }
-.page-title {
-    font-size: 2rem;
-    font-weight: 600;
-    color: #334155;
-    margin-bottom: 0.5rem;
-}
-.page-description { color: #64748b; font-style: italic; }
-
-/* Controls */
-.controls-section {
+.modal-content {
     background: white;
-    border-radius: 8px;
-    padding: 1.5rem;
-    margin-bottom: 1.5rem;
-    box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+    border-radius: 0.5rem;
+    padding: 2rem;
+    max-width: 500px;
+    width: 90%;
+    box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+    position: relative;
 }
-.controls-row {
-    display: flex;
-    gap: 1rem;
-    align-items: center;
-    flex-wrap: wrap;
+
+/* Hide modal by default */
+.modal.hidden {
+    display: none;
 }
-.search-box { flex: 1; min-width: 250px; }
-.search-box input {
+
+/* Table overflow */
+.user-table table {
     width: 100%;
-    padding: 0.75rem;
-    border: 1px solid #ddd;
-    border-radius: 6px;
-    font-size: 1rem;
+    border-collapse: collapse;
 }
-.filter-select {
-    padding: 0.75rem;
-    padding-right: 2rem; /* space for arrow */
-    border: 1px solid #ddd;
-    border-radius: 6px;
-    background: white;
-    min-width: 160px;
-}
-.btn-primary {
-    background: #667eea;
-    color: white;
-    padding: 0.75rem 1.5rem;
-    border: none;
-    border-radius: 6px;
-    cursor: pointer;
-    font-weight: 500;
-    transition: background 0.3s ease;
-}
-.btn-primary:hover { background: #556ee0; }
 
-/* Table */
-.user-table-container {
-    background: white;
-    border-radius: 12px;
-    overflow: hidden;
-    box-shadow: 0 4px 20px rgba(0,0,0,0.08);
-}
-.user-table { width: 100%; border-collapse: collapse; }
-.user-table th {
-    background: #f8fafc;
-    padding: 1rem;
+.user-table th,
+.user-table td {
+    padding: 0.75rem 1rem;
     text-align: left;
-    font-weight: 600;
-    color: #334155;
-    border-bottom: 2px solid #e2e8f0;
-}
-.user-table td { padding: 1rem; border-bottom: 1px solid #e2e8f0; }
-.user-table tr:hover { background: #f3f4f6; }
-.user-table td:first-child { display: flex; align-items: center; }
-
-/* Status Badges */
-.status-badge {
-    padding: 0.4rem 0.8rem;
-    border-radius: 8px;
-    font-size: 0.8rem;
-    font-weight: 500;
-}
-.status-active { background: #dcfce7; color: #16a34a; }
-.status-inactive { background: #fef2f2; color: #dc2626; }
-
-/* Actions */
-.action-buttons { display: flex; gap: 0.5rem; flex-wrap: wrap; }
-.btn-small {
-    padding: 0.5rem 0.75rem;
-    border: 1px solid #e2e8f0;
-    background: white;
-    color: #374151;
-    border-radius: 6px;
-    cursor: pointer;
-    font-size: 0.8rem;
-    text-decoration: none;
-    transition: all 0.2s ease;
-}
-.btn-small:hover {
-    background: #f9fafb;
-    border-color: #667eea;
-    color: #667eea;
-}
-.btn-view:hover { border-color: #3b82f6; color: #3b82f6; }
-.btn-edit:hover { border-color: #f59e0b; color: #f59e0b; }
-.btn-deactivate:hover { border-color: #dc2626; color: #dc2626; }
-.btn-activate:hover { border-color: #16a34a; color: #16a34a; }
-.btn-permissions:hover { border-color: #8b5cf6; color: #8b5cf6; }
-
-/* Pagination */
-.pagination { display: flex; justify-content: center; margin-top: 2rem; }
-.pagination button {
-    padding: 0.6rem 1rem;
-    margin: 0 0.25rem;
-    border: 1px solid #e2e8f0;
-    background: white;
-    color: #374151;
-    border-radius: 6px;
-    cursor: pointer;
-    transition: all 0.2s ease;
-}
-.pagination button.active,
-.pagination button:hover {
-    background: #667eea;
-    color: white;
-    border-color: #667eea;
-}
-.pagination button:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
 }
 
-/* Responsive */
+.user-table tbody tr:hover {
+    background-color: #f9fafb; /* Gray-50 */
+}
+
+/* Action buttons spacing */
+.user-table td .space-x-2 > * + * {
+    margin-left: 0.5rem;
+}
+
+/* Search + filter section */
+.search-filter input,
+.search-filter select {
+    transition: all 0.2s;
+}
+
+/* Responsive adjustments */
 @media (max-width: 768px) {
-    .action-buttons { flex-direction: column; gap: 0.25rem; }
-    .user-table { font-size: 0.9rem; }
+    .tabs ul {
+        flex-direction: column; /* Stack tabs vertically on small screens */
+    }
+
+    /* Vertical spacing between stacked tab items */
+    .tabs ul > * + * {
+        margin-top: 0.5rem; /* Equivalent to space-y-2 */
+    }
+
+    .search-filter {
+        flex-direction: column;
+        gap: 0.5rem;
+    }
 }

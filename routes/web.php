@@ -17,6 +17,8 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Foundation\Auth\EmailVerificationRequest;
 use Illuminate\Http\Request;
 use App\Http\Controllers\Auth\VerificationController; // NEW: Import the new controller
+use App\Http\Controllers\Admin\SettingsController;
+use App\Http\Controllers\Admin\ReportLogController;
 
 Route::get('/', function () {
     return view('welcome');
@@ -62,17 +64,23 @@ Route::post('/logout', [LoginController::class, 'logout'])->name('logout');
 Route::middleware(['auth:web', 'verified'])->group(function () {
     Route::get('/dashboard', function () {
         $user = Auth::user();
-        if ($user->role === 'admin') {
-            return redirect()->route('admin.dashboard');
-        } elseif ($user->role === 'instructor') {
-            return redirect()->route('instructor.dashboard');
+        switch ($user->role) {
+            case 'super_admin':
+            case 'school_admin':
+                return redirect()->route('admin.dashboard');
+            case 'instructor':
+                return redirect()->route('instructor.dashboard');
+            case 'student':
+                // Placeholder: implement student dashboard route when available
+                return redirect()->route('welcome');
+            default:
+                return redirect()->route('welcome')->with('error', 'Role not recognized');
         }
-        return "This is errorrr, Go back";
     })->name('dashboard');
 });
 
 // Admin specific routes (requires authentication AND admin role AND verification)
-Route::middleware(['auth:web', 'role:admin', 'verified'])->group(function () {
+Route::middleware(['auth:web', 'role:super_admin,school_admin', 'verified'])->group(function () {
     // Admin Dashboard routes
     Route::get('/admin/dashboard', [AdminDashboardController::class, 'index'])->name('admin.dashboard');
     Route::get('/admin/dashboard/data', [AdminDashboardController::class, 'getDashboardData'])->name('admin.dashboard.data');
@@ -81,33 +89,56 @@ Route::middleware(['auth:web', 'role:admin', 'verified'])->group(function () {
     // User Management routes
     Route::get('/admin/user-management', [UserManagementController::class, 'index'])->name('admin.user_management');
     Route::get('/admin/users', [UserManagementController::class, 'index'])->name('admin.users.index');
+    Route::get('/admin/users/search', [UserManagementController::class, 'search'])->name('admin.users.search');
+    Route::post('/admin/users/bulk-import', [UserManagementController::class, 'bulkImport'])->name('admin.users.bulk-import');
     Route::get('/admin/users/create', [UserManagementController::class, 'create'])->name('admin.users.create');
     Route::post('/admin/users', [UserManagementController::class, 'store'])->name('admin.users.store');
     Route::get('/admin/users/{user}', [UserManagementController::class, 'show'])->name('admin.users.show');
     Route::get('/admin/users/{user}/edit', [UserManagementController::class, 'edit'])->name('admin.users.edit');
     Route::get('/admin/users/{user}/permissions', [UserManagementController::class, 'permissions'])->name('admin.users.permissions');
     Route::put('/admin/users/{user}', [UserManagementController::class, 'update'])->name('admin.users.update');
+    Route::post('/admin/users/{user}/reset-password', [UserManagementController::class, 'resetPassword'])->name('admin.users.reset-password');
     Route::delete('/admin/users/{user}', [UserManagementController::class, 'destroy'])->name('admin.users.destroy');
-    Route::patch('/admin/users/{user}/toggle-status', [UserManagementController::class, 'toggleStatus'])->name('admin.users.toggle-status');
-    Route::get('/admin/users/search', [UserManagementController::class, 'search'])->name('admin.users.search');
-    
-    // User Management 2FA routes
-    Route::post('/admin/users/request-2fa', [UserManagementController::class, 'request2FACode'])->name('admin.users.request-2fa');
-    Route::post('/admin/users/verify-2fa', [UserManagementController::class, 'verify2FACode'])->name('admin.users.verify-2fa');
-    
-    // Other admin routes (keeping existing routes for now)
-    Route::get('/admin/account', [AdminController::class, 'account'])->name('admin.account');
-    Route::get('/admin/settings', [AdminController::class, 'settings'])->name('admin.settings');
-    Route::get('/admin/reports-logs', [AdminController::class, 'reportsLogs'])->name('admin.reports_logs');
+
+    // Reports & Logs routes
+    Route::get('/admin/reports-logs', [ReportLogController::class, 'index'])->name('admin.reports_logs');
+    Route::get('/admin/reports/data', [ReportLogController::class, 'getReportData'])->name('admin.reports.data');
+    Route::get('/admin/reports/export', [ReportLogController::class, 'exportReports'])->name('admin.reports.export');
+    Route::get('/admin/logs/export', [ReportLogController::class, 'exportLogs'])->name('admin.logs.export');
+
+    // Admin Account/Profile route (profile page only)
+    Route::get('/admin/account', [SettingsController::class, 'index'])->name('admin.account');
+
+    // Admin Settings routes (system & school settings)
+    Route::get('/admin/settings', [SettingsController::class, 'edit'])->name('admin.settings');
+    Route::post('/admin/settings/update', [SettingsController::class, 'update'])->name('admin.settings.update');
+    Route::post('/admin/settings/select-school', [SettingsController::class, 'selectSchool'])->name('admin.settings.select-school');
+    Route::post('/admin/settings/create-school', [SettingsController::class, 'createSchool'])->name('admin.settings.create-school');
+
+    // Email Templates (Super Admin only placeholder)
+    Route::get('/admin/email-templates', [\App\Http\Controllers\Admin\EmailTemplateController::class, 'index'])->name('admin.email-templates.index');
     
     // Course Management routes
     Route::get('/admin/course-management', [CourseManagementController::class, 'index'])->name('admin.course_management');
+    Route::get('/admin/courses/search', [CourseManagementController::class, 'search'])->name('admin.courses.search');
     Route::get('/admin/courses', [CourseManagementController::class, 'index'])->name('admin.courses.index');
+    Route::post('/admin/courses', [CourseManagementController::class, 'store'])->name('admin.courses.store');
+    Route::get('/admin/courses/find-instructor', [CourseManagementController::class, 'findInstructor'])->name('admin.courses.findInstructor');
+    Route::get('/admin/courses/{course}', [CourseManagementController::class, 'show'])->name('admin.courses.show');
+    Route::get('/admin/courses/{course}/details', [CourseManagementController::class, 'showDetails'])->name('admin.courses.showDetails');
+    Route::get('/admin/courses/{course}/edit', [CourseManagementController::class, 'edit'])->name('admin.courses.edit');
+    Route::put('/admin/courses/{course}', [CourseManagementController::class, 'update'])->name('admin.courses.update');
+    Route::delete('/admin/courses/{course}', [CourseManagementController::class, 'destroy'])->name('admin.courses.destroy');
+
     Route::get('/admin/help', [AdminController::class, 'help'])->name('admin.help');
     
     // Admin 2FA routes (for admin account management)
     Route::post('/admin/request-2fa', [AdminController::class, 'request2FACode'])->name('admin.request-2fa');
     Route::post('/admin/verify-2fa', [AdminController::class, 'verify2FACode'])->name('admin.verify-2fa');
+
+    // Backward compatibility for older blade/js expecting admin.users.* route names
+    Route::post('/admin/users/request-2fa', [AdminController::class, 'request2FACode'])->name('admin.users.request-2fa');
+    Route::post('/admin/users/verify-2fa', [AdminController::class, 'verify2FACode'])->name('admin.users.verify-2fa');
 });
 
 

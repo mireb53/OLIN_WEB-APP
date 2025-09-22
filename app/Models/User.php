@@ -12,6 +12,12 @@ class User extends Authenticatable implements MustVerifyEmail
 {
     use HasFactory, Notifiable, HasApiTokens;
 
+    public const ROLE_SUPER_ADMIN = 'super_admin';
+    public const ROLE_SCHOOL_ADMIN = 'school_admin';
+    public const ROLE_ADMIN = 'admin'; // legacy/general
+    public const ROLE_INSTRUCTOR = 'instructor';
+    public const ROLE_STUDENT = 'student';
+
     protected $attributes = [
         'status' => 'active',
     ];
@@ -22,6 +28,7 @@ class User extends Authenticatable implements MustVerifyEmail
         'password',
         'role',
         'status',
+        'school_id',
         'program_id',
         'section_id',
         'email_verification_code',
@@ -59,6 +66,11 @@ class User extends Authenticatable implements MustVerifyEmail
         return $this->belongsTo(Program::class);
     }
 
+    public function school()
+    {
+        return $this->belongsTo(School::class);
+    }
+
     public function taughtCourses()
     {
         return $this->hasMany(Course::class, 'instructor_id');
@@ -93,5 +105,23 @@ class User extends Authenticatable implements MustVerifyEmail
     public function assessments()
     {
         return $this->hasManyThrough(Assessment::class, Course::class, 'instructor_id', 'course_id', 'id', 'id');
+    }
+
+    public function isSuperAdmin(): bool
+    {
+        return $this->role === self::ROLE_SUPER_ADMIN;
+    }
+
+    public function isSchoolAdmin(): bool
+    {
+        return $this->role === self::ROLE_SCHOOL_ADMIN;
+    }
+
+    public function scopeWithinSchool($query, ?int $schoolId)
+    {
+        if ($schoolId) {
+            $query->where('school_id', $schoolId);
+        }
+        return $query;
     }
 }

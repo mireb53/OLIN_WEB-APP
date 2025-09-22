@@ -5,11 +5,13 @@ namespace App\Http\Controllers\Admin;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Session;
 use App\Http\Controllers\Controller;
 use App\Models\User;
 use App\Models\Course;
 use App\Models\Assessment;
 use App\Models\SubmittedAssessment;
+use App\Models\School;
 use Carbon\Carbon;
 
 class AdminDashboardController extends Controller
@@ -19,42 +21,152 @@ class AdminDashboardController extends Controller
      */
     public function index()
     {
-        // Dashboard statistics
-        $stats = $this->getDashboardStats();
-        $recentActivities = $this->getRecentActivities();
+        $user = Auth::user();
+        
+        // Authorization check
+        if (!$user || (!$user->isSuperAdmin() && !$user->isSchoolAdmin())) {
+            abort(403, 'Unauthorized access to admin dashboard');
+        }
+        
+        // Determine active school for scoping
+        $activeSchool = $this->getActiveSchool();
+        $activeSchoolId = $activeSchool ? $activeSchool->id : null;
+        
+        // Check if SuperAdmin needs to create/select a school
+        $needsSchoolSelection = false;
+        if ($user->isSuperAdmin()) {
+            $totalSchools = School::count();
+            if ($totalSchools === 0) {
+                // No schools exist - redirect to settings to create first school
+                return redirect()->route('admin.settings')
+                    ->with('info', 'Welcome! Please create your first school to begin using the system.');
+            } elseif (!$activeSchool) {
+                // Schools exist but none selected
+                $needsSchoolSelection = true;
+            }
+        }
+        
+        // Dashboard statistics (scoped by school)
+        $stats = $needsSchoolSelection ? [] : $this->getDashboardStats($activeSchoolId);
+        $recentActivities = $needsSchoolSelection ? [] : $this->getRecentActivities($activeSchoolId);
         $systemHealth = $this->getSystemHealth();
+        $availableSchools = $user->isSuperAdmin() ? School::orderBy('name')->get() : collect();
 
-        return view('admin.admin_dashboard', compact('stats', 'recentActivities', 'systemHealth'));
+        return view('admin.admin_dashboard', compact(
+            'stats', 
+            'recentActivities', 
+            'systemHealth', 
+            'activeSchool',
+            'availableSchools',
+            'needsSchoolSelection'
+        ));
     }
 
     /**
-     * Get dashboard statistics
+     * Get active school based on user role and session
      */
-    private function getDashboardStats()
+    private function getActiveSchool()
     {
+        $user = Auth::user();
+        
+        if (!$user) {
+            return null;
+        }
+        
+        if ($user->isSuperAdmin()) {
+            // Super Admin: Use active_school from session
+            $activeSchoolId = Session::get('active_school');
+            if ($activeSchoolId) {
+                $school = School::find($activeSchoolId);
+                // Verify school still exists
+                return $school;
+            }
+            return null;
+        } elseif ($user->isSchoolAdmin()) {
+            // School Admin: Use their assigned school
+            if (!$user->school_id) {
+                return null; // No school assigned
+            }
+            return $user->school;
+        }
+        
+        return null;
+    }
+
+    /**
+     * Get dashboard statistics (scoped by school)
+     */
+    private function getDashboardStats($schoolId = null)
+    {
+        // Base queries
+        $userQuery = User::query();
+        $courseQuery = Course::query();
+        $assessmentQuery = Assessment::query();
+        $submissionQuery = SubmittedAssessment::query();
+        
+        // Apply school filtering if schoolId is provided
+        if ($schoolId) {
+            $userQuery->where('school_id', $schoolId);
+            
+            // Courses are related to schools through their instructors
+            $courseQuery->whereHas('instructor', function($q) use ($schoolId) {
+                $q->where('school_id', $schoolId);
+            });
+            
+            // Assessments are related to schools through course -> instructor
+            $assessmentQuery->whereHas('course.instructor', function($q) use ($schoolId) {
+                $q->where('school_id', $schoolId);
+            });
+            
+            // Submissions are related to schools through assessment -> course -> instructor
+            $submissionQuery->whereHas('assessment.course.instructor', function($q) use ($schoolId) {
+                $q->where('school_id', $schoolId);
+            });
+        }
+        
         return [
-            'total_users' => User::count(),
-            'total_courses' => Course::count(),
-            'total_instructors' => User::where('role', 'instructor')->count(),
-            'total_students' => User::where('role', 'student')->count(),
-            'active_courses' => Course::where('status', 'active')->count(),
-            'total_assessments' => Assessment::count(),
-            'submitted_assessments' => SubmittedAssessment::count(),
-            'recent_registrations' => User::where('created_at', '>=', Carbon::now()->subDays(7))->count(),
-            'active_users_today' => User::where('last_login_at', '>=', Carbon::today())->count(),
-            'completed_assessments_this_month' => SubmittedAssessment::where('created_at', '>=', Carbon::now()->startOfMonth())->count(),
+            'total_users' => $userQuery->count(),
+            'total_courses' => $courseQuery->count(),
+            'total_instructors' => (clone $userQuery)->where('role', 'instructor')->count(),
+            'total_students' => (clone $userQuery)->where('role', 'student')->count(),
+            'active_courses' => (clone $courseQuery)->where('status', 'published')->count(),
+            'total_assessments' => $assessmentQuery->count(),
+            'submitted_assessments' => $submissionQuery->count(),
+            'recent_registrations' => (clone $userQuery)->where('created_at', '>=', Carbon::now()->subDays(7))->count(),
+            'active_users_today' => (clone $userQuery)->where('last_login_at', '>=', Carbon::today())->count(),
+            'completed_assessments_this_month' => (clone $submissionQuery)->where('created_at', '>=', Carbon::now()->startOfMonth())->count(),
         ];
     }
 
     /**
-     * Get recent activities
+     * Get recent activities (scoped by school)
      */
-    private function getRecentActivities()
+    private function getRecentActivities($schoolId = null)
     {
         $activities = [];
 
+        // Base queries for recent activities
+        $userQuery = User::query();
+        $courseQuery = Course::with('instructor');
+        $submissionQuery = SubmittedAssessment::with(['student', 'assessment']);
+        
+        // Apply school filtering if schoolId is provided
+        if ($schoolId) {
+            $userQuery->where('school_id', $schoolId);
+            
+            // Courses are related to schools through their instructors
+            $courseQuery->whereHas('instructor', function($q) use ($schoolId) {
+                $q->where('school_id', $schoolId);
+            });
+            
+            // Submissions are related to schools through assessment -> course -> instructor
+            $submissionQuery->whereHas('assessment.course.instructor', function($q) use ($schoolId) {
+                $q->where('school_id', $schoolId);
+            });
+        }
+
         // Recent user registrations
-        $recentUsers = User::orderBy('created_at', 'desc')->limit(3)->get();
+        $recentUsers = $userQuery->orderBy('created_at', 'desc')->limit(3)->get();
         foreach ($recentUsers as $user) {
             $activities[] = [
                 'type' => 'user_registration',
@@ -65,7 +177,7 @@ class AdminDashboardController extends Controller
         }
 
         // Recent course creation
-        $recentCourses = Course::with('instructor')->orderBy('created_at', 'desc')->limit(3)->get();
+        $recentCourses = $courseQuery->orderBy('created_at', 'desc')->limit(3)->get();
         foreach ($recentCourses as $course) {
             $activities[] = [
                 'type' => 'course_creation',
@@ -76,8 +188,7 @@ class AdminDashboardController extends Controller
         }
 
         // Recent assessment submissions
-        $recentSubmissions = SubmittedAssessment::with(['student', 'assessment'])
-            ->orderBy('created_at', 'desc')->limit(3)->get();
+        $recentSubmissions = $submissionQuery->orderBy('created_at', 'desc')->limit(3)->get();
         foreach ($recentSubmissions as $submission) {
             $activities[] = [
                 'type' => 'assessment_submission',
@@ -230,9 +341,12 @@ class AdminDashboardController extends Controller
      */
     public function getDashboardData(Request $request)
     {
+        $activeSchool = $this->getActiveSchool();
+        $activeSchoolId = $activeSchool ? $activeSchool->id : null;
+        
         return response()->json([
-            'stats' => $this->getDashboardStats(),
-            'activities' => $this->getRecentActivities(),
+            'stats' => $this->getDashboardStats($activeSchoolId),
+            'activities' => $this->getRecentActivities($activeSchoolId),
             'health' => $this->getSystemHealth(),
         ]);
     }
@@ -243,29 +357,37 @@ class AdminDashboardController extends Controller
     public function getChartData(Request $request)
     {
         $type = $request->get('type', 'users');
+        $activeSchool = $this->getActiveSchool();
+        $activeSchoolId = $activeSchool ? $activeSchool->id : null;
         
         switch ($type) {
             case 'users':
-                return $this->getUsersChartData();
+                return $this->getUsersChartData($activeSchoolId);
             case 'courses':
-                return $this->getCoursesChartData();
+                return $this->getCoursesChartData($activeSchoolId);
             case 'assessments':
-                return $this->getAssessmentsChartData();
+                return $this->getAssessmentsChartData($activeSchoolId);
             default:
                 return response()->json(['error' => 'Invalid chart type'], 400);
         }
     }
 
     /**
-     * Get users chart data
+     * Get users chart data (scoped by school)
      */
-    private function getUsersChartData()
+    private function getUsersChartData($schoolId = null)
     {
-        $last30Days = collect(range(0, 29))->map(function ($i) {
+        $last30Days = collect(range(0, 29))->map(function ($i) use ($schoolId) {
             $date = Carbon::now()->subDays($i);
+            $query = User::whereDate('created_at', $date);
+            
+            if ($schoolId) {
+                $query->where('school_id', $schoolId);
+            }
+            
             return [
                 'date' => $date->format('Y-m-d'),
-                'count' => User::whereDate('created_at', $date)->count()
+                'count' => $query->count()
             ];
         })->reverse()->values();
 
@@ -276,12 +398,19 @@ class AdminDashboardController extends Controller
     }
 
     /**
-     * Get courses chart data
+     * Get courses chart data (scoped by school)
      */
-    private function getCoursesChartData()
+    private function getCoursesChartData($schoolId = null)
     {
-        $coursesByStatus = Course::select('status', DB::raw('count(*) as count'))
-            ->groupBy('status')
+        $query = Course::select('status', DB::raw('count(*) as count'));
+        
+        if ($schoolId) {
+            $query->whereHas('instructor', function($q) use ($schoolId) {
+                $q->where('school_id', $schoolId);
+            });
+        }
+        
+        $coursesByStatus = $query->groupBy('status')
             ->pluck('count', 'status');
 
         return response()->json([
@@ -291,15 +420,23 @@ class AdminDashboardController extends Controller
     }
 
     /**
-     * Get assessments chart data
+     * Get assessments chart data (scoped by school)
      */
-    private function getAssessmentsChartData()
+    private function getAssessmentsChartData($schoolId = null)
     {
-        $last7Days = collect(range(0, 6))->map(function ($i) {
+        $last7Days = collect(range(0, 6))->map(function ($i) use ($schoolId) {
             $date = Carbon::now()->subDays($i);
+            $query = SubmittedAssessment::whereDate('created_at', $date);
+            
+            if ($schoolId) {
+                $query->whereHas('assessment.course.instructor', function($q) use ($schoolId) {
+                    $q->where('school_id', $schoolId);
+                });
+            }
+            
             return [
                 'date' => $date->format('M d'),
-                'submissions' => SubmittedAssessment::whereDate('created_at', $date)->count()
+                'submissions' => $query->count()
             ];
         })->reverse()->values();
 

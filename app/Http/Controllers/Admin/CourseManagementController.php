@@ -5,121 +5,165 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use App\Models\Course;
+use App\Models\Program;
+use App\Models\User;
 use Illuminate\Support\Facades\Storage;
 
 class CourseManagementController extends Controller
 {
     public function index()
     {
-        // Simple version - just return the view without fetching any data
-        // This will use the sample data in the blade file
-        return view('admin.course_management');
-    }
-    
-    // These methods are commented out to prevent errors
-    // You can uncomment and implement them later when needed
-    
-    /*
-    public function show($courseId)
-    {
-        $course = Course::with(['instructor'])->findOrFail($courseId);
-        return view('admin.courses.show', compact('course'));
+        // Server-side filtering and pagination
+        $query = Course::with(['instructor','program'])->withCount('students');
+
+        // search q: course title, id, instructor name, program name
+        $q = request()->input('q');
+        if ($q) {
+            $query->where(function($sub) use ($q) {
+                $sub->where('title', 'like', "%{$q}%")
+                    ->orWhere('id', 'like', "%{$q}%")
+                    ->orWhereHas('instructor', function($iq) use ($q) { $iq->where('name','like',"%{$q}%"); })
+                    ->orWhereHas('program', function($pq) use ($q) { $pq->where('name','like',"%{$q}%"); });
+            });
+        }
+
+        // filter by program id
+        $programFilter = request()->input('program');
+        if ($programFilter) {
+            $query->where('program_id', $programFilter);
+        }
+
+        // filter by status
+        $statusFilter = request()->input('status');
+        if ($statusFilter) {
+            $query->where('status', $statusFilter);
+        }
+
+        $courses = $query->orderBy('created_at','desc')->paginate(10)->withQueryString();
+
+        // load all programs for the create modal program select
+        $programs = Program::orderBy('name')->get();
+        return view('admin.course_management', compact('courses','programs'));
     }
 
-    public function create()
+    /**
+     * AJAX: find instructor by email (returns id and name) for the create modal
+     */
+    public function findInstructor(Request $request)
     {
-        return view('admin.courses.create');
+        $request->validate(['email' => 'required|email']);
+        $email = $request->input('email');
+        $user = User::where('email', $email)->where('role', 'instructor')->first();
+        if (!$user) {
+            return response()->json(['success' => false, 'message' => 'Instructor not found.'], 404);
+        }
+        return response()->json(['success' => true, 'instructor' => ['id' => $user->id, 'name' => $user->name, 'email' => $user->email]]);
     }
 
+    /**
+     * Store a new course as admin (associates to instructor)
+     */
     public function store(Request $request)
     {
-        $request->validate([
+        $validated = $request->validate([
             'title' => 'required|string|max:255',
-            'description' => 'required|string',
-            'status' => 'required|in:active,inactive,draft,archived',
+            'course_code' => 'required|string|max:50|unique:courses,course_code',
+            'status' => 'required|in:published,draft,archived',
+            'program_id' => 'required|exists:programs,id',
+            'description' => 'nullable|string',
+            'credits' => 'nullable|numeric|min:0',
             'instructor_id' => 'required|exists:users,id',
         ]);
 
-        $course = Course::create($request->all());
+        $course = Course::create($validated);
 
-        // Handle thumbnail upload if provided
-        if ($request->hasFile('thumbnail')) {
-            $request->validate([
-                'thumbnail' => 'image|mimes:jpeg,png,jpg,gif|max:2048',
-            ]);
-            
-            $thumbnailPath = $request->file('thumbnail')->store('course_thumbnails', 'public');
-            $course->update(['thumbnail' => $thumbnailPath]);
+        // load relations for client-side append
+        $course->load('instructor','program');
+
+        return response()->json(['success' => true, 'course' => $course]);
+    }
+
+    public function show($courseId)
+    {
+        $course = \App\Models\Course::with([
+            'instructor',
+            'program',
+            'topics',
+            'materials',
+            'assessments',
+            'students'
+        ])->findOrFail($courseId);
+
+        // If the request expects JSON (AJAX/modal), return JSON payload
+        if (request()->wantsJson() || request()->ajax()) {
+            // Format students for modal (only id, name, email)
+            $course->students = $course->students->map(function($s) {
+                return [
+                    'id' => $s->id,
+                    'name' => $s->name,
+                    'email' => $s->email
+                ];
+            })->values();
+            return response()->json(['success' => true, 'course' => $course]);
         }
+        // For direct page access, redirect back to course management (we now use modals)
+        return redirect()->route('admin.course_management');
+    }
 
-        return redirect()->route('admin.courses.index')->with('success', 'Course created successfully');
+    /**
+     * Show a full page view of the course details (same content as modal).
+     */
+    public function showDetails($courseId)
+    {
+        $course = \App\Models\Course::with([
+            'instructor',
+            'program',
+            'topics',
+            'materials',
+            'assessments',
+            'students'
+        ])->findOrFail($courseId);
+
+        return view('admin.courses.course-details', compact('course'));
     }
 
     public function edit($courseId)
     {
-        $course = Course::findOrFail($courseId);
-        return view('admin.courses.edit', compact('course'));
+        $course = Course::with('instructor')->findOrFail($courseId);
+        // Return JSON for modal edit; redirect to management if accessed directly
+        if (request()->wantsJson() || request()->ajax()) {
+            return response()->json(['success' => true, 'course' => $course]);
+        }
+        return redirect()->route('admin.course_management');
     }
 
     public function update(Request $request, $courseId)
     {
-        $request->validate([
+        $course = Course::findOrFail($courseId);
+        
+        $validated = $request->validate([
             'title' => 'required|string|max:255',
-            'description' => 'required|string',
-            'status' => 'required|in:active,inactive,draft,archived',
+            'course_code' => 'required|string|max:50|unique:courses,course_code,' . $course->id,
+            'status' => 'required|in:published,draft,archived',
+            'program_id' => 'required|exists:programs,id',
+            'description' => 'nullable|string',
+            'credits' => 'nullable|numeric|min:0',
             'instructor_id' => 'required|exists:users,id',
         ]);
 
-        $course = Course::findOrFail($courseId);
-        
-        $course->update([
-            'title' => $request->title,
-            'description' => $request->description,
-            'status' => $request->status,
-            'instructor_id' => $request->instructor_id,
-        ]);
+        $course->update($validated);
 
-        // Handle thumbnail upload if provided
-        if ($request->hasFile('thumbnail')) {
-            $request->validate([
-                'thumbnail' => 'image|mimes:jpeg,png,jpg,gif|max:2048',
-            ]);
+        // load relations for client-side update
+        $course->load('instructor','program');
 
-            // Delete old thumbnail if it exists
-            if ($course->thumbnail && Storage::exists('public/' . $course->thumbnail)) {
-                Storage::delete('public/' . $course->thumbnail);
-            }
-
-            // Store new thumbnail
-            $thumbnailPath = $request->file('thumbnail')->store('course_thumbnails', 'public');
-            $course->update(['thumbnail' => $thumbnailPath]);
-        }
-
-        return redirect()->route('admin.course_management')->with('success', 'Course updated successfully');
+        return response()->json(['success' => true, 'course' => $course]);
     }
 
     public function destroy($courseId)
     {
         $course = Course::findOrFail($courseId);
-        
-        // Note: You'll need to implement the enrollments relationship in the Course model
-        // before uncommenting this check
-        // 
-        // if ($course->enrollments()->count() > 0) {
-        //     return redirect()->route('admin.courses.index')
-        //         ->with('error', 'Cannot delete course with active enrollments');
-        // }
-
-        // Delete course thumbnail if it exists
-        if ($course->thumbnail && Storage::exists('public/' . $course->thumbnail)) {
-            Storage::delete('public/' . $course->thumbnail);
-        }
-
         $course->delete();
-
-        return redirect()->route('admin.courses.index')->with('success', 'Course deleted successfully');
+        return response()->json(['success' => true]);
     }
-    */
 }
-
 

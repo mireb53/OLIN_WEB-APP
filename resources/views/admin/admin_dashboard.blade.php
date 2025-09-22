@@ -1,285 +1,168 @@
 <x-layoutAdmin>
-
     <main class="flex-1 overflow-y-auto p-4 md:p-8">
-        <h1 class="text-3xl font-bold text-slate-900">Dashboard</h1>
-        <p class="mt-2 mb-8 text-slate-500 text-lg">
-            Welcome, Admin! Here is an overview of the system's health and activity.
-        </p>
+        <div class="mb-8">
+            <h1 class="text-3xl font-bold text-slate-900">Dashboard</h1>
+            <p class="mt-2 text-slate-500 text-lg">Welcome back, {{ Auth::user()->name }}! Here's a quick overview of the system.</p>
+        </div>
 
-        <!-- System Overview & Key Metrics -->
-        <section class="bg-white rounded-2xl p-8 mb-8 shadow-lg border border-gray-200">
-            <h2 class="text-xl font-bold text-slate-900 mb-6 uppercase tracking-wide">
-                System Overview & Key Metrics
-            </h2>
-            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                <!-- Total Courses -->
-                <div class="bg-white rounded-2xl p-8 text-center transition-all duration-300 border border-gray-200 relative overflow-hidden hover:shadow-2xl">
-                    <div class="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-slate-900 to-slate-700"></div>
-                    <div class="text-slate-500 mb-6 font-semibold text-lg">Total Courses</div>
-                    <div class="text-6xl font-extrabold text-slate-900 my-4">{{ $stats['total_courses'] }}</div>
-                    <div class="text-sm text-slate-600 mb-4">{{ $stats['active_courses'] }} Active</div>
-                    <a href="{{ route('admin.course_management') }}" class="bg-gradient-to-r from-slate-900 to-slate-700 text-white font-semibold py-4 px-6 rounded-xl inline-block transition-all duration-300 uppercase tracking-wider hover:from-slate-700 hover:to-slate-900 hover:shadow-xl">
-                        View All Courses
-                    </a>
-                </div>
-
-                <!-- Total Users -->
-                <div class="bg-white rounded-2xl p-8 text-center transition-all duration-300 border border-gray-200 relative overflow-hidden hover:shadow-2xl">
-                    <div class="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-slate-900 to-slate-700"></div>
-                    <div class="text-slate-500 mb-6 font-semibold text-lg">Total Users</div>
-                    <div class="text-6xl font-extrabold text-slate-900 my-4">{{ $stats['total_users'] }}</div>
-                    <div class="text-sm text-slate-600 mb-4">{{ $stats['recent_registrations'] }} this week</div>
-                    <a href="#" class="bg-gradient-to-r from-slate-900 to-slate-700 text-white font-semibold py-4 px-6 rounded-xl inline-block transition-all duration-300 uppercase tracking-wider hover:from-slate-700 hover:to-slate-900 hover:shadow-xl">
-                        View All Users
-                    </a>
-                </div>
-
-                <!-- Active Instructors -->
-                <div class="bg-white rounded-2xl p-8 text-center transition-all duration-300 border border-gray-200 relative overflow-hidden hover:shadow-2xl">
-                    <div class="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-slate-900 to-slate-700"></div>
-                    <div class="text-slate-500 mb-6 font-semibold text-lg">Instructors</div>
-                    <div class="text-6xl font-extrabold text-slate-900 my-4">{{ $stats['total_instructors'] }}</div>
-                    <div class="text-sm text-slate-600 mb-4">{{ $stats['total_students'] }} Students</div>
-                    <a href="#" class="bg-gradient-to-r from-slate-900 to-slate-700 text-white font-semibold py-4 px-6 rounded-xl inline-block transition-all duration-300 uppercase tracking-wider hover:from-slate-700 hover:to-slate-900 hover:shadow-xl">
-                        Manage Users
-                    </a>
-                </div>
-
-                <!-- Storage Used -->
-                <div class="bg-white rounded-2xl p-8 text-center transition-all duration-300 border border-gray-200 relative overflow-hidden hover:shadow-2xl">
-                    <div class="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-slate-900 to-slate-700"></div>
-                    <div class="text-slate-500 mb-6 font-semibold text-lg">Storage Used</div>
-                    <div class="text-3xl @if($systemHealth['storage_percentage'] > 80) text-red-600 @elseif($systemHealth['storage_percentage'] > 60) text-yellow-600 @else text-green-600 @endif font-extrabold my-4">
-                        {{ $systemHealth['storage_used'] }} / {{ $systemHealth['storage_total'] }}
-                    </div>
-                    <div class="w-full bg-gray-200 rounded-full h-2 mb-4">
-                        <div class="@if($systemHealth['storage_percentage'] > 80) bg-red-600 @elseif($systemHealth['storage_percentage'] > 60) bg-yellow-600 @else bg-green-600 @endif h-2 rounded-full transition-all duration-500" style="width: {{ $systemHealth['storage_percentage'] }}%"></div>
-                    </div>
-                    <a href="#" class="bg-gradient-to-r from-slate-900 to-slate-700 text-white font-semibold py-4 px-6 rounded-xl inline-block transition-all duration-300 uppercase tracking-wider hover:from-slate-700 hover:to-slate-900 hover:shadow-xl">
-                        View Storage Details
-                    </a>
-                </div>
-            </div>
-        </section>
-
-        <!-- Admin Quick Actions + Recent Activity (Combined) -->
-        <section class="bg-white rounded-2xl p-8 mb-8 shadow-lg border border-gray-200">
-            <h2 class="text-xl font-bold text-slate-900 mb-6 uppercase tracking-wide">
-                Quick Actions & Recent Activity
-            </h2>
-            <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                
-                <!-- Admin Quick Actions -->
-                <div>
-                    <h3 class="mb-4 text-slate-900 font-semibold">Admin Quick Actions</h3>
-                    <div class="flex flex-col gap-4">
-                        <button onclick="openCreateCourseModal()" class="bg-gradient-to-r from-slate-900 to-slate-700 text-white font-semibold py-5 px-6 rounded-xl cursor-pointer text-base uppercase tracking-wider transition-all duration-300 hover:-translate-y-1 hover:shadow-xl">
-                            <i class="fas fa-plus mr-2"></i> Create New Course
-                        </button>
-                        <button onclick="openAddUserModal()" class="bg-gradient-to-r from-slate-900 to-slate-700 text-white font-semibold py-5 px-6 rounded-xl cursor-pointer text-base uppercase tracking-wider transition-all duration-300 hover:-translate-y-1 hover:shadow-xl">
-                            <i class="fas fa-user-plus mr-2"></i> Add New User
-                        </button>
-                        <a href="#" class="bg-gradient-to-r from-slate-900 to-slate-700 text-white font-semibold py-5 px-6 rounded-xl text-center cursor-pointer text-base uppercase tracking-wider transition-all duration-300 hover:-translate-y-1 hover:shadow-xl">
-                            <i class="fas fa-chart-bar mr-2"></i> View All Reports
-                        </a>
-                    </div>
-                </div>
-
-                <!-- Recent System Activity -->
-                <div>
-                    <h3 class="mb-4 text-slate-900 font-semibold">Recent System Activity</h3>
-                    <div class="bg-slate-50 rounded-xl p-6">
-                        @forelse($recentActivities as $activity)
-                            <div class="flex items-center gap-4 py-4 @if(!$loop->last) border-b border-gray-200 @endif">
-                                <div class="w-12 h-12 bg-slate-900 text-white rounded-xl flex items-center justify-center">
-                                    <i class="{{ $activity['icon'] }}"></i>
-                                </div>
-                                <div class="flex-1">
-                                    <div class="font-semibold">{{ $activity['description'] }}</div>
-                                    <div class="text-slate-500 text-sm">{{ $activity['time']->diffForHumans() }}</div>
-                                </div>
-                            </div>
-                        @empty
-                            <div class="text-center py-8 text-slate-500">
-                                <i class="fas fa-clock text-3xl mb-2"></i>
-                                <p>No recent activity</p>
-                            </div>
-                        @endforelse
+        {{-- School Context Banner --}}
+        @if(Auth::user()->isSuperAdmin())
+            @if(isset($needsSchoolSelection) && $needsSchoolSelection && $availableSchools->count() > 0)
+                {{-- School Selection Required --}}
+                <div class="mb-8 p-6 bg-yellow-50 border border-yellow-200 rounded-lg">
+                    <div class="text-center">
+                        <div class="w-12 h-12 bg-yellow-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                            <svg class="w-6 h-6 text-yellow-600" fill="currentColor" viewBox="0 0 20 20">
+                                <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/>
+                            </svg>
+                        </div>
+                        <h3 class="text-yellow-800 font-semibold text-lg mb-2">Please Select a School</h3>
+                        <p class="text-yellow-600 text-sm mb-4">Choose which school's dashboard you'd like to view.</p>
                         
-                        <a href="#" class="mt-4 inline-block text-slate-900 font-semibold uppercase tracking-wider hover:underline text-sm">
-                            View All Activities
-                        </a>
+                        <form action="{{ route('admin.settings.select-school') }}" method="POST" class="inline-flex items-center gap-3">
+                            @csrf
+                            <select name="school_id" required class="py-2 px-4 border border-yellow-300 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-yellow-500">
+                                <option value="">-- Select School --</option>
+                                @foreach($availableSchools as $school)
+                                    <option value="{{ $school->id }}">{{ $school->name }}</option>
+                                @endforeach
+                            </select>
+                            <button type="submit" class="px-4 py-2 bg-yellow-600 text-white rounded-md hover:bg-yellow-700 transition-colors">
+                                View Dashboard
+                            </button>
+                        </form>
+                        
+                        <div class="mt-4">
+                            <a href="{{ route('admin.settings') }}" class="text-yellow-600 hover:text-yellow-800 text-sm underline">
+                                Or manage schools in Settings
+                            </a>
+                        </div>
                     </div>
                 </div>
+            @elseif($activeSchool)
+                {{-- Active School Selected --}}
+                <div class="mb-8 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                    <div class="flex items-center">
+                        <div class="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center mr-3">
+                            <svg class="w-4 h-4 text-blue-600" fill="currentColor" viewBox="0 0 20 20"><path d="M10.394 2.08a1 1 0 00-.788 0l-7 3a1 1 0 000 1.84L5.25 8.051a.999.999 0 01.356-.257l4-1.714a1 1 0 11.788 1.838L7.667 9.088l1.94.831a1 1 0 00.787 0l7-3a1 1 0 000-1.838l-7-3zM3.31 9.397L5 10.12v4.102a8.969 8.969 0 00-1.05-.174 1 1 0 01-.89-.89 11.115 11.115 0 01.25-3.762zM9.3 16.573A9.026 9.026 0 007 14.935v-3.957l1.818.78a3 3 0 002.364 0l5.508-2.361a11.026 11.026 0 01.25 3.762 1 1 0 01-.89.89 8.968 8.968 0 00-5.35.524 9.027 9.027 0 00-.4.04z"/></svg>
+                        </div>
+                        <div class="flex-1">
+                            <h3 class="text-blue-800 font-semibold">Dashboard for: {{ $activeSchool->name }}</h3>
+                            <p class="text-blue-600 text-sm">All statistics and activities below are filtered for this school</p>
+                        </div>
+                        <div class="ml-auto flex items-center gap-3">
+                            @if($availableSchools->count() > 1)
+                                <form action="{{ route('admin.settings.select-school') }}" method="POST" class="inline-flex items-center gap-2">
+                                    @csrf
+                                    <select name="school_id" onchange="this.form.submit()" class="text-sm py-1 px-2 border border-blue-300 rounded-md bg-white focus:outline-none focus:ring-1 focus:ring-blue-500">
+                                        @foreach($availableSchools as $school)
+                                            <option value="{{ $school->id }}" {{ $activeSchool && $activeSchool->id == $school->id ? 'selected' : '' }}>
+                                                {{ $school->name }}
+                                            </option>
+                                        @endforeach
+                                    </select>
+                                </form>
+                            @endif
+                            <a href="{{ route('admin.settings') }}" class="text-blue-600 hover:text-blue-800 text-sm underline">Manage Schools</a>
+                        </div>
+                    </div>
+                </div>
+            @endif
+        @elseif(Auth::user()->isSchoolAdmin() && $activeSchool)
+            {{-- School Admin School Banner --}}
+            <div class="mb-8 p-4 bg-green-50 border border-green-200 rounded-lg">
+                <div class="flex items-center">
+                    <div class="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center mr-3">
+                        <svg class="w-4 h-4 text-green-600" fill="currentColor" viewBox="0 0 20 20"><path d="M10.394 2.08a1 1 0 00-.788 0l-7 3a1 1 0 000 1.84L5.25 8.051a.999.999 0 01.356-.257l4-1.714a1 1 0 11.788 1.838L7.667 9.088l1.94.831a1 1 0 00.787 0l7-3a1 1 0 000-1.838l-7-3zM3.31 9.397L5 10.12v4.102a8.969 8.969 0 00-1.05-.174 1 1 0 01-.89-.89 11.115 11.115 0 01.25-3.762zM9.3 16.573A9.026 9.026 0 007 14.935v-3.957l1.818.78a3 3 0 002.364 0l5.508-2.361a11.026 11.026 0 01.25 3.762 1 1 0 01-.89.89 8.968 8.968 0 00-5.35.524 9.027 9.027 0 00-.4.04z"/></svg>
+                    </div>
+                    <div class="flex-1">
+                        <h3 class="text-green-800 font-semibold">Your School: {{ $activeSchool->name }}</h3>
+                        <p class="text-green-600 text-sm">School Administrator Dashboard</p>
+                    </div>
+                </div>
+            </div>
+        @elseif(Auth::user()->isSchoolAdmin() && !$activeSchool)
+            {{-- School Admin without assigned school --}}
+            <div class="mb-8 p-4 bg-red-50 border border-red-200 rounded-lg">
+                <div class="flex items-center">
+                    <div class="w-8 h-8 bg-red-100 rounded-full flex items-center justify-center mr-3">
+                        <svg class="w-4 h-4 text-red-600" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"/>
+                        </svg>
+                    </div>
+                    <div class="flex-1">
+                        <h3 class="text-red-800 font-semibold">No School Assigned</h3>
+                        <p class="text-red-600 text-sm">Please contact the Super Admin to assign you to a school.</p>
+                    </div>
+                </div>
+            </div>
+        @endif
+
+        <section class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-10">
+            <div class="flex flex-col items-center justify-center bg-white rounded-2xl p-6 shadow-lg border border-gray-200 hover:shadow-2xl hover:-translate-y-1 transition-transform duration-300">
+                <svg xmlns="http://www.w3.org/2000/svg" class="w-12 h-12 text-indigo-500 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 14c3.866 0 7 1.567 7 3.5V20H5v-2.5C5 15.567 8.134 14 12 14zM12 12a4 4 0 100-8 4 4 0 000 8z"/></svg>
+                <div class="text-slate-500 mb-2 font-medium uppercase tracking-wide">Instructors</div>
+                <div class="text-5xl font-extrabold text-slate-900">{{ $stats['total_instructors'] ?? 0 }}</div>
+            </div>
+            <div class="flex flex-col items-center justify-center bg-white rounded-2xl p-6 shadow-lg border border-gray-200 hover:shadow-2xl hover:-translate-y-1 transition-transform duration-300">
+                <svg xmlns="http://www.w3.org/2000/svg" class="w-12 h-12 text-green-500 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 14l9-5-9-5-9 5 9 5zm0 0l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0012 20.055a11.952 11.952 0 00-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14z"/></svg>
+                <div class="text-slate-500 mb-2 font-medium uppercase tracking-wide">Students</div>
+                <div class="text-5xl font-extrabold text-slate-900">{{ $stats['total_students'] ?? 0 }}</div>
+            </div>
+            <div class="flex flex-col items-center justify-center bg-white rounded-2xl p-6 shadow-lg border border-gray-200 hover:shadow-2xl hover:-translate-y-1 transition-transform duration-300">
+                <svg xmlns="http://www.w3.org/2000/svg" class="w-12 h-12 text-amber-500 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                <div class="text-slate-500 mb-2 font-medium uppercase tracking-wide">Active Courses</div>
+                <div class="text-5xl font-extrabold text-slate-900">{{ $stats['active_courses'] ?? 0 }}</div>
+            </div>
+            <div class="flex flex-col items-center justify-center bg-white rounded-2xl p-6 shadow-lg border border-gray-200 hover:shadow-2xl hover:-translate-y-1 transition-transform duration-300">
+                <svg xmlns="http://www.w3.org/2000/svg" class="w-12 h-12 text-red-500 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"/></svg>
+                <div class="text-slate-500 mb-2 font-medium uppercase tracking-wide">Assessments</div>
+                <div class="text-5xl font-extrabold text-slate-900">{{ $stats['total_assessments'] ?? 0 }}</div>
             </div>
         </section>
 
-        <!-- System Health & Performance -->
-        <section class="bg-white rounded-2xl p-8 mb-8 shadow-lg border border-gray-200">
-            <h2 class="text-xl font-bold text-slate-900 mb-6 uppercase tracking-wide">
-                System Health & Performance
-            </h2>
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <!-- Server Status -->
-                <div class="bg-gradient-to-br from-green-50 to-green-100 rounded-xl p-6 border border-green-200">
-                    <div class="flex items-center justify-between mb-4">
-                        <h3 class="font-semibold text-slate-900">Server Status</h3>
-                        <div class="flex items-center gap-2">
-                            <div class="w-3 h-3 bg-green-500 rounded-full animate-pulse"></div>
-                            <span class="text-green-600 font-semibold">Online</span>
-                        </div>
-                    </div>
-                    <div class="space-y-2">
-                        <div class="flex justify-between">
-                            <span class="text-slate-600">Uptime:</span>
-                            <span class="font-semibold">{{ $systemHealth['server_uptime'] ?? '99.9%' }}</span>
-                        </div>
-                        <div class="flex justify-between">
-                            <span class="text-slate-600">Response Time:</span>
-                            <span class="font-semibold text-green-600">120ms</span>
-                        </div>
-                    </div>
-                </div>
+        @php
+            $recentUsers = collect($recentActivities ?? [])->where('type','user_registration')->take(5);
+            $recentCourses = collect($recentActivities ?? [])->where('type','course_creation')->take(5);
+        @endphp
 
-                <!-- Backup Status -->
-                <div class="bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl p-6 border border-blue-200">
-                    <div class="flex items-center justify-between mb-4">
-                        <h3 class="font-semibold text-slate-900">Backup Status</h3>
-                        <i class="fas fa-database text-blue-600 text-xl"></i>
-                    </div>
-                    <div class="space-y-2">
-                        <div class="flex justify-between">
-                            <span class="text-slate-600">Last Backup:</span>
-                            <span class="font-semibold">{{ $systemHealth['last_backup']->diffForHumans() }}</span>
+        <section class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            <div class="bg-white rounded-2xl p-6 shadow-lg border border-gray-200">
+                <h2 class="text-xl font-bold text-slate-900 mb-6">Recent User Registrations</h2>
+                <div class="space-y-4">
+                    @forelse($recentUsers as $activity)
+                        <div class="flex items-center p-3 bg-slate-50 rounded-lg border border-slate-100">
+                            <div class="w-10 h-10 bg-indigo-100 rounded-full flex items-center justify-center mr-3">
+                                <svg class="w-5 h-5 text-indigo-600" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clip-rule="evenodd"/></svg>
+                            </div>
+                            <div class="flex-1">
+                                <h3 class="font-semibold text-slate-900">{{ $activity['description'] }}</h3>
+                                <p class="text-sm text-slate-500">{{ $activity['time']->diffForHumans() }}</p>
+                            </div>
                         </div>
-                        <div class="flex justify-between">
-                            <span class="text-slate-600">Status:</span>
-                            <span class="font-semibold text-green-600">Successful</span>
-                        </div>
-                    </div>
+                    @empty
+                        <p class="text-slate-500 text-center py-8">No recent user registrations</p>
+                    @endforelse
                 </div>
-
-                <!-- Assessment Statistics -->
-                <div class="bg-gradient-to-br from-purple-50 to-purple-100 rounded-xl p-6 border border-purple-200">
-                    <div class="flex items-center justify-between mb-4">
-                        <h3 class="font-semibold text-slate-900">Assessments</h3>
-                        <i class="fas fa-clipboard-check text-purple-600 text-xl"></i>
-                    </div>
-                    <div class="space-y-2">
-                        <div class="flex justify-between">
-                            <span class="text-slate-600">Total:</span>
-                            <span class="font-semibold">{{ $stats['total_assessments'] }}</span>
+            </div>
+            <div class="bg-white rounded-2xl p-6 shadow-lg border border-gray-200">
+                <h2 class="text-xl font-bold text-slate-900 mb-6">Recent Course Activity</h2>
+                <div class="space-y-4">
+                    @forelse($recentCourses as $activity)
+                        <div class="flex items-center p-3 bg-slate-50 rounded-lg border border-slate-100">
+                            <div class="w-10 h-10 bg-amber-100 rounded-full flex items-center justify-center mr-3">
+                                <svg class="w-5 h-5 text-amber-600" fill="currentColor" viewBox="0 0 20 20"><path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                            </div>
+                            <div class="flex-1">
+                                <h3 class="font-semibold text-slate-900">{{ $activity['description'] }}</h3>
+                                <p class="text-sm text-slate-500">{{ $activity['time']->diffForHumans() }}</p>
+                            </div>
                         </div>
-                        <div class="flex justify-between">
-                            <span class="text-slate-600">Submitted:</span>
-                            <span class="font-semibold text-purple-600">{{ $stats['submitted_assessments'] }}</span>
-                        </div>
-                    </div>
+                    @empty
+                        <p class="text-slate-500 text-center py-8">No recent course activity</p>
+                    @endforelse
                 </div>
             </div>
         </section>
-
-        <!-- Quick Statistics Grid -->
-        <section class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-            <div class="bg-white rounded-xl p-6 shadow-lg border border-gray-200">
-                <div class="flex items-center justify-between">
-                    <div>
-                        <p class="text-slate-500 text-sm font-medium">Weekly Registrations</p>
-                        <p class="text-2xl font-bold text-slate-900">{{ $stats['recent_registrations'] }}</p>
-                    </div>
-                    <div class="bg-blue-100 p-3 rounded-lg">
-                        <i class="fas fa-user-plus text-blue-600"></i>
-                    </div>
-                </div>
-            </div>
-
-            <div class="bg-white rounded-xl p-6 shadow-lg border border-gray-200">
-                <div class="flex items-center justify-between">
-                    <div>
-                        <p class="text-slate-500 text-sm font-medium">Active Courses</p>
-                        <p class="text-2xl font-bold text-slate-900">{{ $stats['active_courses'] }}</p>
-                    </div>
-                    <div class="bg-green-100 p-3 rounded-lg">
-                        <i class="fas fa-book-open text-green-600"></i>
-                    </div>
-                </div>
-            </div>
-
-            <div class="bg-white rounded-xl p-6 shadow-lg border border-gray-200">
-                <div class="flex items-center justify-between">
-                    <div>
-                        <p class="text-slate-500 text-sm font-medium">Storage Usage</p>
-                        <p class="text-2xl font-bold 
-                           @if($systemHealth['storage_percentage'] > 80) text-red-600 
-                           @elseif($systemHealth['storage_percentage'] > 60) text-yellow-600 
-                           @else text-green-600 @endif">
-                           {{ $systemHealth['storage_percentage'] }}%
-                        </p>
-                    </div>
-                    <div class="bg-purple-100 p-3 rounded-lg">
-                        <i class="fas fa-hdd text-purple-600"></i>
-                    </div>
-                </div>
-            </div>
-
-            <div class="bg-white rounded-xl p-6 shadow-lg border border-gray-200">
-                <div class="flex items-center justify-between">
-                    <div>
-                        <p class="text-slate-500 text-sm font-medium">System Health</p>
-                        <p class="text-2xl font-bold text-green-600">Excellent</p>
-                    </div>
-                    <div class="bg-green-100 p-3 rounded-lg">
-                        <i class="fas fa-heart text-green-600"></i>
-                    </div>
-                </div>
-            </div>
-        </section>
-
-        <!-- Simple Modals for Quick Actions -->
-        <div id="createCourseModal" class="fixed inset-0 bg-black bg-opacity-50 hidden z-50 flex items-center justify-center">
-            <div class="bg-white rounded-xl p-8 max-w-md w-full mx-4">
-                <h3 class="text-xl font-bold mb-4">Create New Course</h3>
-                <p class="text-slate-600 mb-6">This feature will redirect you to the course creation page.</p>
-                <div class="flex gap-4">
-                    <button onclick="closeModal('createCourseModal')" class="flex-1 bg-gray-200 text-gray-800 py-2 px-4 rounded-lg hover:bg-gray-300">Cancel</button>
-                    <button onclick="window.location.href='#'" class="flex-1 bg-slate-900 text-white py-2 px-4 rounded-lg hover:bg-slate-700">Continue</button>
-                </div>
-            </div>
-        </div>
-
-        <div id="addUserModal" class="fixed inset-0 bg-black bg-opacity-50 hidden z-50 flex items-center justify-center">
-            <div class="bg-white rounded-xl p-8 max-w-md w-full mx-4">
-                <h3 class="text-xl font-bold mb-4">Add New User</h3>
-                <p class="text-slate-600 mb-6">This feature will redirect you to the user management page.</p>
-                <div class="flex gap-4">
-                    <button onclick="closeModal('addUserModal')" class="flex-1 bg-gray-200 text-gray-800 py-2 px-4 rounded-lg hover:bg-gray-300">Cancel</button>
-                    <button onclick="window.location.href='#'" class="flex-1 bg-slate-900 text-white py-2 px-4 rounded-lg hover:bg-slate-700">Continue</button>
-                </div>
-            </div>
-        </div>
-
-        <script>
-            function openCreateCourseModal() {
-                document.getElementById('createCourseModal').classList.remove('hidden');
-            }
-
-            function openAddUserModal() {
-                document.getElementById('addUserModal').classList.remove('hidden');
-            }
-
-            function closeModal(modalId) {
-                document.getElementById(modalId).classList.add('hidden');
-            }
-
-            // Close modal when clicking outside
-            document.querySelectorAll('[id$="Modal"]').forEach(modal => {
-                modal.addEventListener('click', function(e) {
-                    if (e.target === this) {
-                        this.classList.add('hidden');
-                    }
-                });
-            });
-        </script>
     </main>
-
 </x-layoutAdmin>

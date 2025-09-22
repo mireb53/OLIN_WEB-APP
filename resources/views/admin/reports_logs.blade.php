@@ -1,6 +1,4 @@
 <x-layoutAdmin>
-
-
     <x-slot name="header">
         <div class="mb-8">
             <h1 class="text-3xl font-semibold text-slate-700 mb-2">Reports & Logs</h1>
@@ -9,68 +7,104 @@
     </x-slot>
 
     <main class="flex-1 p-4 md:p-8">
-        {{-- Section 1 --}}
+        {{-- Tabs --}}
+        <div class="mb-6 border-b border-slate-200">
+            <ul class="flex flex-wrap -mb-px text-sm font-medium text-center">
+                <li class="mr-2">
+                    <button class="inline-block p-4 border-b-2 border-indigo-500 text-indigo-600">Reports</button>
+                </li>
+                <li class="mr-2">
+                    <button class="inline-block p-4 border-b-2 border-transparent hover:border-slate-300 hover:text-slate-600">Logs</button>
+                </li>
+            </ul>
+        </div>
+
+        {{-- Section: Reports --}}
         <section class="bg-white rounded-xl p-8 mb-8 shadow-lg">
             <h2 class="text-xl font-semibold text-slate-700 mb-6 uppercase tracking-wider">
-                Section 1: System Reports Overview
+                Reports
             </h2>
 
-            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
-                <div class="bg-gradient-to-br from-indigo-500 to-purple-600 text-white p-8 rounded-xl text-center relative overflow-hidden">
-                    <div class="absolute -top-1/2 -right-1/2 w-full h-full bg-radial-gradient-tl opacity-10 transform rotate-45"></div>
-                    <div class="text-5xl font-bold mb-2 relative z-10">500GB</div>
-                    <div class="text-lg opacity-90 relative z-10">Total Content Synced</div>
-                    <button class="bg-white/20 border border-white/30 text-white py-2 px-4 rounded-md mt-4 cursor-pointer transition-all duration-300 ease-in-out hover:bg-white/30 hover:-translate-y-0.5 relative z-10">
-                        View Details
-                    </button>
+            {{-- Filters --}}
+            <div class="flex flex-col md:flex-row gap-4 mb-6">
+                @if(Auth::user()->role === 'SuperAdmin')
+                    <div>
+                        <label class="block text-sm font-medium text-slate-600 mb-1">School</label>
+                        <select class="w-full md:w-48 py-2 px-3 border border-slate-300 rounded-md">
+                            <option value="">All Schools</option>
+                            @foreach($schools as $school)
+                                <option value="{{ $school->id }}">{{ $school->name }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+                @endif
+                <div>
+                    <label class="block text-sm font-medium text-slate-600 mb-1">Date Range</label>
+                    <select class="w-full md:w-48 py-2 px-3 border border-slate-300 rounded-md">
+                        <option>Last 7 days</option>
+                        <option>Last 30 days</option>
+                        <option>This Semester</option>
+                        <option>Custom Range</option>
+                    </select>
                 </div>
-
-                <div class="bg-gradient-to-br from-pink-400 to-red-500 text-white p-8 rounded-xl text-center relative overflow-hidden">
-                    <div class="absolute -top-1/2 -right-1/2 w-full h-full bg-radial-gradient-tl opacity-10 transform rotate-45"></div>
-                    <div class="text-5xl font-bold mb-2 relative z-10">80%</div>
-                    <div class="text-lg opacity-90 relative z-10">Total Storage Used</div>
-                    <button class="bg-white/20 border border-white/30 text-white py-2 px-4 rounded-md mt-4 cursor-pointer transition-all duration-300 ease-in-out hover:bg-white/30 hover:-translate-y-0.5 relative z-10">
-                        View Details
-                    </button>
+                <div>
+                    <label class="block text-sm font-medium text-slate-600 mb-1">Course</label>
+                    <select class="w-full md:w-48 py-2 px-3 border border-slate-300 rounded-md">
+                        <option value="">All Courses</option>
+                        @foreach($courses as $course)
+                            <option value="{{ $course->id }}">{{ $course->title }}</option>
+                        @endforeach
+                    </select>
                 </div>
-
-                <div class="bg-gradient-to-br from-cyan-400 to-blue-500 text-white p-8 rounded-xl text-center relative overflow-hidden">
-                    <div class="absolute -top-1/2 -right-1/2 w-full h-full bg-radial-gradient-tl opacity-10 transform rotate-45"></div>
-                    <div class="text-5xl font-bold mb-2 relative z-10">150</div>
-                    <div class="text-lg opacity-90 relative z-10">Peak Concurrent Users</div>
-                    <button class="bg-white/20 border border-white/30 text-white py-2 px-4 rounded-md mt-4 cursor-pointer transition-all duration-300 ease-in-out hover:bg-white/30 hover:-translate-y-0.5 relative z-10">
-                        View Details
-                    </button>
+                <div>
+                    <label class="block text-sm font-medium text-slate-600 mb-1">Instructor</label>
+                    <select class="w-full md:w-48 py-2 px-3 border border-slate-300 rounded-md">
+                        <option value="">All Instructors</option>
+                        @foreach($instructors as $instructor)
+                            <option value="{{ $instructor->id }}">{{ $instructor->name }}</option>
+                        @endforeach
+                    </select>
                 </div>
             </div>
 
-            <button class="bg-indigo-500 text-white border-none py-3 px-6 rounded-lg cursor-pointer font-medium transition-all duration-300 ease-in-out hover:bg-indigo-600 hover:-translate-y-0.5">
-                Export All Reports (CSV)
-            </button>
+            {{-- Charts --}}
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <div class="bg-slate-50 rounded-lg p-6 shadow-inner">
+                    <h3 class="font-semibold text-slate-700 mb-4">Student Progress Summary</h3>
+                    <canvas id="studentProgressChart" class="w-full h-64"></canvas>
+                </div>
+                <div class="bg-slate-50 rounded-lg p-6 shadow-inner">
+                    <h3 class="font-semibold text-slate-700 mb-4">Instructor Activity Report</h3>
+                    <canvas id="instructorActivityChart" class="w-full h-64"></canvas>
+                </div>
+                <div class="bg-slate-50 rounded-lg p-6 shadow-inner md:col-span-2">
+                    <h3 class="font-semibold text-slate-700 mb-4">Course Completion Stats</h3>
+                    <canvas id="courseCompletionChart" class="w-full h-72"></canvas>
+                </div>
+            </div>
+
+            <div class="mt-6">
+                <button class="bg-indigo-500 text-white py-2 px-5 rounded-lg hover:bg-indigo-600 transition">
+                    Export Reports (CSV)
+                </button>
+            </div>
         </section>
 
-        {{-- Section 2 --}}
-        <section class="bg-white rounded-xl p-8 mb-8 shadow-lg">
+        {{-- Section: Logs --}}
+        <section class="bg-white rounded-xl p-8 shadow-lg">
             <h2 class="text-xl font-semibold text-slate-700 mb-6 uppercase tracking-wider">
-                Section 2: System Activity Logs
+                Activity Logs
             </h2>
 
-            <div class="flex flex-col md:flex-row gap-4 mb-8">
-                <div class="flex flex-col gap-2">
-                    <label class="font-semibold text-gray-700 text-sm">Filter Logs:</label>
-                    <select class="py-3 px-4 border border-gray-300 rounded-md bg-white cursor-pointer transition-colors duration-300 ease-in-out focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 w-full md:w-52">
-                        <option>Select Type </option>
-                        <option>User Activity</option>
-                        <option>Sync</option>
-                        <option>Error</option>
-                        <option>Content Upload</option>
-                    </select>
+            {{-- Filters --}}
+            <div class="flex flex-col md:flex-row gap-4 mb-6">
+                <div>
+                    <label class="block text-sm font-medium text-slate-600 mb-1">Filter by User</label>
+                    <input type="text" placeholder="Search user..." class="w-full md:w-64 py-2 px-3 border border-slate-300 rounded-md">
                 </div>
-
-                <div class="flex flex-col gap-2">
-                    <label class="font-semibold text-gray-700 text-sm">Date Range:</label>
-                    <select class="py-3 px-4 border border-gray-300 rounded-md bg-white cursor-pointer transition-colors duration-300 ease-in-out focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 w-full md:w-52">
-                        <option>Select Date Range </option>
+                <div>
+                    <label class="block text-sm font-medium text-slate-600 mb-1">Date Range</label>
+                    <select class="w-full md:w-48 py-2 px-3 border border-slate-300 rounded-md">
                         <option>Today</option>
                         <option>Last 7 days</option>
                         <option>Last 30 days</option>
@@ -79,67 +113,120 @@
                 </div>
             </div>
 
+            {{-- Logs Table --}}
             <div class="overflow-x-auto">
                 <table class="w-full border-collapse bg-white rounded-xl overflow-hidden text-sm md:text-base">
                     <thead>
                         <tr class="bg-slate-50">
-                            <th class="text-slate-700 p-4 text-left font-semibold uppercase tracking-wider text-sm border-b-2 border-slate-200">Timestamp</th>
-                            <th class="text-slate-700 p-4 text-left font-semibold uppercase tracking-wider text-sm border-b-2 border-slate-200">Activity Type</th>
-                            <th class="text-slate-700 p-4 text-left font-semibold uppercase tracking-wider text-sm border-b-2 border-slate-200">User</th>
-                            <th class="text-slate-700 p-4 text-left font-semibold uppercase tracking-wider text-sm border-b-2 border-slate-200">Description</th>
+                            <th class="text-slate-700 p-4 text-left font-semibold uppercase text-sm border-b">Timestamp</th>
+                            <th class="text-slate-700 p-4 text-left font-semibold uppercase text-sm border-b">User</th>
+                            <th class="text-slate-700 p-4 text-left font-semibold uppercase text-sm border-b">Action</th>
+                            <th class="text-slate-700 p-4 text-left font-semibold uppercase text-sm border-b">Details</th>
                         </tr>
                     </thead>
                     <tbody>
-                        <tr class="hover:bg-gray-100 transition-colors duration-300">
-                            <td class="p-4 border-b border-slate-200">2025-07-23 10:00 AM</td>
-                            <td class="p-4 border-b border-slate-200"><span class="py-1 px-3 rounded-lg text-xs font-medium bg-green-100 text-green-700">Sync Success</span></td>
-                            <td class="p-4 border-b border-slate-200">Instructor Ana</td>
-                            <td class="p-4 border-b border-slate-200">'Biology Module' synced.</td>
-                        </tr>
-                        <tr class="hover:bg-gray-100 transition-colors duration-300">
-                            <td class="p-4 border-b border-slate-200">2025-07-23 09:30 AM</td>
-                            <td class="p-4 border-b border-slate-200"><span class="py-1 px-3 rounded-lg text-xs font-medium bg-blue-100 text-blue-700">User Login</span></td>
-                            <td class="p-4 border-b border-slate-200">Admin Jane</td>
-                            <td class="p-4 border-b border-slate-200">Admin logged in.</td>
-                        </tr>
-                        <tr class="hover:bg-gray-100 transition-colors duration-300">
-                            <td class="p-4 border-b border-slate-200">2025-07-23 08:45 AM</td>
-                            <td class="p-4 border-b border-slate-200"><span class="py-1 px-3 rounded-lg text-xs font-medium bg-yellow-100 text-yellow-700">Content Upload</span></td>
-                            <td class="p-4 border-b border-slate-200">Instructor Mark</td>
-                            <td class="p-4 border-b border-slate-200">'Physics Exam.pdf' uploaded.</td>
-                        </tr>
-                        <tr class="hover:bg-gray-100 transition-colors duration-300">
-                            <td class="p-4 border-b border-slate-200">2025-07-23 07:15 AM</td>
-                            <td class="p-4 border-b border-slate-200"><span class="py-1 px-3 rounded-lg text-xs font-medium bg-red-100 text-red-700">Sync Error</span></td>
-                            <td class="p-4 border-b border-slate-200">System</td>
-                            <td class="p-4 border-b border-slate-200">Failed to sync 'Course X' to 3 devices.</td>
-                        </tr>
-                        <tr class="hover:bg-gray-100 transition-colors duration-300">
-                            <td class="p-4 border-b border-slate-200">2025-07-23 06:45 AM</td>
-                            <td class="p-4 border-b border-slate-200"><span class="py-1 px-3 rounded-lg text-xs font-medium bg-blue-100 text-blue-700">User Login</span></td>
-                            <td class="p-4 border-b border-slate-200">Student Sarah</td>
-                            <td class="p-4 border-b border-slate-200">Student logged in from mobile device.</td>
-                        </tr>
-                        <tr class="hover:bg-gray-100 transition-colors duration-300">
-                            <td class="p-4 border-b border-slate-200">2025-07-23 06:30 AM</td>
-                            <td class="p-4 border-b border-slate-200"><span class="py-1 px-3 rounded-lg text-xs font-medium bg-green-100 text-green-700">Sync Success</span></td>
-                            <td class="p-4 border-b border-slate-200">Instructor Bob</td>
-                            <td class="p-4 border-b border-slate-200">'Chemistry Lab Notes' synced to 5 devices.</td>
-                        </tr>
+                        @forelse($logs as $log)
+                            <tr class="hover:bg-slate-50">
+                                <td class="p-4 border-b">{{ $log->created_at->format('Y-m-d h:i A') }}</td>
+                                <td class="p-4 border-b">{{ $log->user->name }}</td>
+                                <td class="p-4 border-b">{{ $log->action }}</td>
+                                <td class="p-4 border-b">{{ $log->details }}</td>
+                            </tr>
+                        @empty
+                            <tr>
+                                <td colspan="4" class="p-4 text-center text-slate-500">No logs available</td>
+                            </tr>
+                        @endforelse
                     </tbody>
                 </table>
             </div>
 
-            <div class="flex justify-center gap-1 mt-8">
-                <button class="py-2 px-4 border border-slate-200 bg-white text-gray-700 rounded-md cursor-pointer transition-all duration-200 ease-in-out hover:bg-indigo-500 hover:text-white hover:border-indigo-500">&lt;</button>
-                <button class="py-2 px-4 border border-indigo-500 bg-indigo-500 text-white rounded-md cursor-pointer transition-all duration-200 ease-in-out">1</button>
-                <button class="py-2 px-4 border border-slate-200 bg-white text-gray-700 rounded-md cursor-pointer transition-all duration-200 ease-in-out hover:bg-indigo-500 hover:text-white hover:border-indigo-500">2</button>
-                <button class="py-2 px-4 border border-slate-200 bg-white text-gray-700 rounded-md cursor-pointer transition-all duration-200 ease-in-out hover:bg-indigo-500 hover:text-white hover:border-indigo-500">3</button>
-                <button class="py-2 px-4 border border-slate-200 bg-white text-gray-700 rounded-md cursor-pointer transition-all duration-200 ease-in-out hover:bg-indigo-500 hover:text-white hover:border-indigo-500">4</button>
-                <button class="py-2 px-4 border border-slate-200 bg-white text-gray-700 rounded-md cursor-pointer transition-all duration-200 ease-in-out hover:bg-indigo-500 hover:text-white hover:border-indigo-500">5</button>
-                <button class="py-2 px-4 border border-slate-200 bg-white text-gray-700 rounded-md cursor-pointer transition-all duration-200 ease-in-out hover:bg-indigo-500 hover:text-white hover:border-indigo-500">&gt;</button>
+            <div class="mt-6 flex justify-between">
+                <button class="bg-indigo-500 text-white py-2 px-5 rounded-lg hover:bg-indigo-600 transition">
+                    Download Logs (CSV)
+                </button>
+                <div class="flex gap-1">
+                    {{ $logs->links() }}
+                </div>
             </div>
         </section>
     </main>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const studentProgressCtx = document.getElementById('studentProgressChart').getContext('2d');
+            const instructorActivityCtx = document.getElementById('instructorActivityChart').getContext('2d');
+            const courseCompletionCtx = document.getElementById('courseCompletionChart').getContext('2d');
 
+            let studentProgressChart = new Chart(studentProgressCtx, {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: [{
+                        label: 'Submissions',
+                        data: [],
+                        borderColor: 'rgba(75, 192, 192, 1)',
+                        tension: 0.1
+                    }]
+                }
+            });
+
+            let instructorActivityChart = new Chart(instructorActivityCtx, {
+                type: 'bar',
+                data: {
+                    labels: [],
+                    datasets: [{
+                        label: 'Materials Uploaded',
+                        data: [],
+                        backgroundColor: 'rgba(153, 102, 255, 0.6)'
+                    }]
+                }
+            });
+
+            let courseCompletionChart = new Chart(courseCompletionCtx, {
+                type: 'doughnut',
+                data: {
+                    labels: [],
+                    datasets: [{
+                        label: 'Enrolled Students',
+                        data: [],
+                        backgroundColor: [
+                            'rgba(255, 99, 132, 0.6)',
+                            'rgba(54, 162, 235, 0.6)',
+                            'rgba(255, 206, 86, 0.6)',
+                            'rgba(75, 192, 192, 0.6)',
+                            'rgba(153, 102, 255, 0.6)',
+                            'rgba(255, 159, 64, 0.6)'
+                        ]
+                    }]
+                }
+            });
+
+            function fetchChartData() {
+                // You can get filter values here, e.g.,
+                // const schoolId = document.querySelector('select[name="school_id"]').value;
+                
+                fetch('{{ route('admin.reports.data') }}') // Add filters as query params
+                    .then(response => response.json())
+                    .then(data => {
+                        studentProgressChart.data.labels = data.studentProgress.labels;
+                        studentProgressChart.data.datasets[0].data = data.studentProgress.data;
+                        studentProgressChart.update();
+
+                        instructorActivityChart.data.labels = data.instructorActivity.labels;
+                        instructorActivityChart.data.datasets[0].data = data.instructorActivity.data;
+                        instructorActivityChart.update();
+
+                        courseCompletionChart.data.labels = data.courseCompletion.labels;
+                        courseCompletionChart.data.datasets[0].data = data.courseCompletion.data;
+                        courseCompletionChart.update();
+                    });
+            }
+
+            fetchChartData();
+
+            // Add event listeners to filters to refetch data
+            // document.querySelector('select[name="school_id"]').addEventListener('change', fetchChartData);
+        });
+    </script>
 </x-layoutAdmin>
