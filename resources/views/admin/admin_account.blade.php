@@ -194,29 +194,29 @@
     
     <div class="help-content">
         <div class="help-options">
-            <button id="adminFaqsBtn" class="help-option-btn">
+            <a id="adminFaqsBtn" href="{{ route('admin.help.faqs') }}" class="help-option-btn">
                 <div class="help-icon">❓</div>
                 <div class="help-text">
                     <h3>Admin FAQs</h3>
                     <p>Administrator-specific frequently asked questions</p>
                 </div>
-            </button>
+            </a>
             
-            <button id="systemDocsBtn" class="help-option-btn">
+            <a id="systemDocsBtn" href="{{ route('admin.help.docs') }}" class="help-option-btn">
                 <div class="help-icon">📚</div>
                 <div class="help-text">
                     <h3>System Documentation</h3>
                     <p>Technical documentation, API guides, and system manuals</p>
                 </div>
-            </button>
+            </a>
             
-            <button id="contactSupportBtn" class="help-option-btn priority-support">
+            <a id="contactSupportBtn" href="{{ route('admin.help.support') }}" class="help-option-btn priority-support">
                 <div class="help-icon">🚨</div>
                 <div class="help-text">
                     <h3>Contact IT Support</h3>
                     <p>Priority support for administrators with escalation</p>
                 </div>
-            </button>
+            </a>
         </div>
     </div>
 </section>

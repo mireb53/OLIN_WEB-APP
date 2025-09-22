@@ -13,8 +13,33 @@ class CourseManagementController extends Controller
 {
     public function index()
     {
-        // Server-side filtering and pagination
-        $query = Course::with(['instructor','program'])->withCount('students');
+        $user = auth()->user();
+        $activeSchool = null;
+
+        if ($user && $user->isSuperAdmin()) {
+            $activeSchoolId = session('active_school');
+            if ($activeSchoolId) {
+                $activeSchool = \App\Models\School::find($activeSchoolId);
+            }
+            // If no school selected redirect to settings for selection/creation
+            if (!$activeSchool) {
+                return redirect()->route('admin.settings')->with('info', 'Please select or create a school first to manage courses.');
+            }
+        } elseif ($user && $user->isSchoolAdmin()) {
+            $activeSchool = $user->school;
+            if (!$activeSchool) {
+                return redirect()->route('admin.settings')->with('error', 'You are not assigned to a school yet.');
+            }
+        } else {
+            abort(403, 'Unauthorized');
+        }
+
+        // Server-side filtering scoped by instructor->school_id
+        $query = Course::with(['instructor','program'])
+            ->withCount('students')
+            ->whereHas('instructor', function($q) use ($activeSchool) {
+                $q->where('school_id', $activeSchool->id);
+            });
 
         // search q: course title, id, instructor name, program name
         $q = request()->input('q');
@@ -39,11 +64,16 @@ class CourseManagementController extends Controller
             $query->where('status', $statusFilter);
         }
 
-        $courses = $query->orderBy('created_at','desc')->paginate(10)->withQueryString();
+    $courses = $query->orderBy('created_at','desc')->paginate(10)->withQueryString();
 
         // load all programs for the create modal program select
-        $programs = Program::orderBy('name')->get();
-        return view('admin.course_management', compact('courses','programs'));
+        $programs = Program::whereHas('courses.instructor', function($q) use ($activeSchool) {
+                $q->where('school_id', $activeSchool->id);
+            })
+            ->orderBy('name')
+            ->get();
+
+        return view('admin.course_management', compact('courses','programs','activeSchool'));
     }
 
     /**
@@ -65,6 +95,9 @@ class CourseManagementController extends Controller
      */
     public function store(Request $request)
     {
+        $user = auth()->user();
+        $activeSchoolId = $user && $user->isSuperAdmin() ? session('active_school') : ($user->school_id ?? null);
+
         $validated = $request->validate([
             'title' => 'required|string|max:255',
             'course_code' => 'required|string|max:50|unique:courses,course_code',
@@ -74,6 +107,13 @@ class CourseManagementController extends Controller
             'credits' => 'nullable|numeric|min:0',
             'instructor_id' => 'required|exists:users,id',
         ]);
+        // Ensure instructor belongs to active school
+        $instructor = User::where('id', $validated['instructor_id'])
+            ->when($activeSchoolId, function($q) use ($activeSchoolId) { $q->where('school_id', $activeSchoolId); })
+            ->first();
+        if (!$instructor) {
+            return response()->json(['success' => false, 'message' => 'Instructor not in active school context.'], 422);
+        }
 
         $course = Course::create($validated);
 
@@ -85,6 +125,9 @@ class CourseManagementController extends Controller
 
     public function show($courseId)
     {
+        $user = auth()->user();
+        $activeSchoolId = $user && $user->isSuperAdmin() ? session('active_school') : ($user->school_id ?? null);
+
         $course = \App\Models\Course::with([
             'instructor',
             'program',
@@ -92,7 +135,8 @@ class CourseManagementController extends Controller
             'materials',
             'assessments',
             'students'
-        ])->findOrFail($courseId);
+        ])->whereHas('instructor', function($q) use ($activeSchoolId) { if($activeSchoolId) $q->where('school_id', $activeSchoolId); })
+          ->findOrFail($courseId);
 
         // If the request expects JSON (AJAX/modal), return JSON payload
         if (request()->wantsJson() || request()->ajax()) {
@@ -115,6 +159,9 @@ class CourseManagementController extends Controller
      */
     public function showDetails($courseId)
     {
+        $user = auth()->user();
+        $activeSchoolId = $user && $user->isSuperAdmin() ? session('active_school') : ($user->school_id ?? null);
+
         $course = \App\Models\Course::with([
             'instructor',
             'program',
@@ -122,14 +169,20 @@ class CourseManagementController extends Controller
             'materials',
             'assessments',
             'students'
-        ])->findOrFail($courseId);
+        ])->whereHas('instructor', function($q) use ($activeSchoolId) { if($activeSchoolId) $q->where('school_id', $activeSchoolId); })
+          ->findOrFail($courseId);
 
         return view('admin.courses.course-details', compact('course'));
     }
 
     public function edit($courseId)
     {
-        $course = Course::with('instructor')->findOrFail($courseId);
+        $user = auth()->user();
+        $activeSchoolId = $user && $user->isSuperAdmin() ? session('active_school') : ($user->school_id ?? null);
+
+        $course = Course::with('instructor')
+            ->whereHas('instructor', function($q) use ($activeSchoolId) { if($activeSchoolId) $q->where('school_id', $activeSchoolId); })
+            ->findOrFail($courseId);
         // Return JSON for modal edit; redirect to management if accessed directly
         if (request()->wantsJson() || request()->ajax()) {
             return response()->json(['success' => true, 'course' => $course]);
@@ -139,7 +192,11 @@ class CourseManagementController extends Controller
 
     public function update(Request $request, $courseId)
     {
-        $course = Course::findOrFail($courseId);
+        $user = auth()->user();
+        $activeSchoolId = $user && $user->isSuperAdmin() ? session('active_school') : ($user->school_id ?? null);
+
+        $course = Course::whereHas('instructor', function($q) use ($activeSchoolId) { if($activeSchoolId) $q->where('school_id', $activeSchoolId); })
+            ->findOrFail($courseId);
         
         $validated = $request->validate([
             'title' => 'required|string|max:255',
@@ -161,7 +218,11 @@ class CourseManagementController extends Controller
 
     public function destroy($courseId)
     {
-        $course = Course::findOrFail($courseId);
+        $user = auth()->user();
+        $activeSchoolId = $user && $user->isSuperAdmin() ? session('active_school') : ($user->school_id ?? null);
+
+        $course = Course::whereHas('instructor', function($q) use ($activeSchoolId) { if($activeSchoolId) $q->where('school_id', $activeSchoolId); })
+            ->findOrFail($courseId);
         $course->delete();
         return response()->json(['success' => true]);
     }

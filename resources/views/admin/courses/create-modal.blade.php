@@ -92,10 +92,11 @@
                 resEl.textContent = 'Searching...';
                 if (!email) { resEl.textContent = 'Please enter an email.'; return; }
 
-                fetch('{{ route("admin.courses.findInstructor") }}', {
-                    method: 'POST',
-                    headers: CSRF_HEADERS,
-                    body: JSON.stringify({ email })
+                const url = new URL('{{ route("admin.courses.findInstructor") }}');
+                url.searchParams.set('email', email);
+                fetch(url.toString(), {
+                    method: 'GET',
+                    headers: { 'Accept': 'application/json' }
                 })
                 .then(r => r.json())
                 .then(data => {

@@ -17,7 +17,7 @@
                     </p>
                 </div>
                 <div class="mt-4 md:mt-0 flex flex-col md:flex-row gap-3">
-                    <a href="{{ route('admin.courseManagement') }}" class="inline-flex items-center gap-2 px-6 py-3 border border-gray-600 dark:border-gray-300 rounded-full text-sm font-semibold text-gray-300 dark:text-gray-700 hover:bg-gray-700 dark:hover:bg-gray-200 transition-all duration-300 transform hover:scale-105">
+                    <a href="{{ route('admin.course_management') }}" class="inline-flex items-center gap-2 px-6 py-3 border border-gray-600 dark:border-gray-300 rounded-full text-sm font-semibold text-gray-300 dark:text-gray-700 hover:bg-gray-700 dark:hover:bg-gray-200 transition-all duration-300 transform hover:scale-105">
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>
                         Back to Courses
                     </a>

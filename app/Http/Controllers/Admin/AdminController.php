@@ -158,5 +158,40 @@ class AdminController extends Controller
         return view('admin.help', compact('helpTopics'));
     }
 
+    /**
+     * Dedicated Admin Help subsections
+     */
+    public function helpFaqs()
+    {
+        $faqs = [
+            ['q' => 'How do I reset an administrator password?', 'a' => 'Navigate to User Management, locate the admin user, and choose Reset Password. A temporary password email will be sent.'],
+            ['q' => 'Why can’t I see any courses?', 'a' => 'Ensure an active school context is selected in Settings (Super Admin) or that you are assigned to a school.'],
+            ['q' => 'How do I enable two-factor authentication?', 'a' => '2FA is triggered automatically for sensitive actions like course deletion or update. Email codes are generated per session.'],
+            ['q' => 'How to assign a School Admin?', 'a' => 'Create a user with role school_admin and link them to a school via Settings > School Management.'],
+        ];
+        return view('admin.help.faqs', compact('faqs'));
+    }
+
+    public function helpDocs()
+    {
+        $docs = [
+            ['title' => 'System Architecture Overview', 'slug' => 'system-architecture', 'updated' => now()->subDays(3)],
+            ['title' => 'API Authentication Guide', 'slug' => 'api-authentication', 'updated' => now()->subDays(5)],
+            ['title' => 'Course Lifecycle Management', 'slug' => 'course-lifecycle', 'updated' => now()->subDays(10)],
+            ['title' => 'Assessment & Grading Flow', 'slug' => 'assessment-grading', 'updated' => now()->subDays(14)],
+        ];
+        return view('admin.help.docs', compact('docs'));
+    }
+
+    public function helpSupport()
+    {
+        $channels = [
+            ['name' => 'Email Support', 'contact' => 'support@olin.test', 'sla' => '24h Response'],
+            ['name' => 'Priority Hotline', 'contact' => '+1-800-555-0123', 'sla' => 'Immediate (Critical Only)'],
+            ['name' => 'Status Page', 'contact' => 'https://status.olin.test', 'sla' => 'Real-time'],
+        ];
+        return view('admin.help.support', compact('channels'));
+    }
+
     // Course Management functionality moved to CourseManagementController
 }

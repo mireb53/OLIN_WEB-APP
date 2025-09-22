@@ -131,6 +131,9 @@ Route::middleware(['auth:web', 'role:super_admin,school_admin', 'verified'])->gr
     Route::delete('/admin/courses/{course}', [CourseManagementController::class, 'destroy'])->name('admin.courses.destroy');
 
     Route::get('/admin/help', [AdminController::class, 'help'])->name('admin.help');
+    Route::get('/admin/help/faqs', [AdminController::class, 'helpFaqs'])->name('admin.help.faqs');
+    Route::get('/admin/help/docs', [AdminController::class, 'helpDocs'])->name('admin.help.docs');
+    Route::get('/admin/help/support', [AdminController::class, 'helpSupport'])->name('admin.help.support');
     
     // Admin 2FA routes (for admin account management)
     Route::post('/admin/request-2fa', [AdminController::class, 'request2FACode'])->name('admin.request-2fa');

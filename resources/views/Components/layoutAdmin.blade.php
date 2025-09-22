@@ -98,7 +98,7 @@
           </a>
         </div>
   
-        <div class="nav-section">
+        <!-- <div class="nav-section">
           <div class="nav-section-title">Support</div>
           
           <a href="{{ route('admin.help') }}" 
@@ -106,7 +106,7 @@
             <div class="nav-icon"><i class="fas fa-question-circle"></i></div>
             <span class="nav-text">Help Center</span>
           </a>
-        </div>
+        </div> -->
       </nav>
     </aside>
   

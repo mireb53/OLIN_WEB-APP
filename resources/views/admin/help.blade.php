@@ -22,6 +22,13 @@
         </div>
     </div>
 
+    <!-- Quick Navigation -->
+    <div class="mb-10 flex flex-wrap gap-4">
+        <a href="{{ route('admin.help.faqs') }}" class="px-4 py-2 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 text-sm font-semibold shadow">Admin FAQs</a>
+        <a href="{{ route('admin.help.docs') }}" class="px-4 py-2 rounded-lg bg-slate-800 text-white hover:bg-slate-900 text-sm font-semibold shadow">System Documentation</a>
+        <a href="{{ route('admin.help.support') }}" class="px-4 py-2 rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 text-sm font-semibold shadow">IT Support</a>
+    </div>
+
     <!-- Section 1: Admin Guides & Manuals -->
     <section class="bg-white rounded-2xl p-8 mb-8 shadow-[0_8px_30px_rgba(0,0,0,0.08)] border border-slate-200">
         <h2 class="text-xl font-bold text-slate-900 mb-6 uppercase tracking-[0.5px] pb-2 border-b-2 border-slate-100">

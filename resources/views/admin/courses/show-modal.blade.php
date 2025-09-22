@@ -63,12 +63,10 @@
 </div>
 
 <style>
-    .tab-button {
-        @apply whitespace-nowrap py-3 px-1 border-b-2 font-medium text-sm text-gray-500 hover:text-gray-700 hover:border-gray-300;
-    }
-    .tab-button.active-tab {
-        @apply border-indigo-500 text-indigo-600;
-    }
+    /* Replaced @apply with explicit utility equivalents for better editor compatibility */
+    .tab-button { white-space: nowrap; padding: 0.75rem 0.25rem; border-bottom-width: 2px; font-weight: 500; font-size: 0.875rem; line-height: 1.25rem; color: #6b7280; transition: color .15s; }
+    .tab-button:hover { color: #374151; border-color: #d1d5db; }
+    .tab-button.active-tab { border-color: #6366f1; color: #4f46e5; }
 </style>
 
 <script>
