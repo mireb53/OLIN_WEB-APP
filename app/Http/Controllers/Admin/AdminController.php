@@ -7,7 +7,6 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
-use Illuminate\Support\Facades\Mail;
 use App\Models\User;
 use App\Models\Course;
 use App\Models\Assessment;
@@ -22,47 +21,7 @@ class AdminController extends Controller
      * ======================
      */
 
-    // Request 2FA code for sensitive actions
-    public function request2FACode(Request $request)
-    {
-        $user = Auth::user();
-        $code = rand(100000, 999999);
-
-        // Store code with expiration (5 min + 5 sec)
-        session([
-            'admin_2fa_code' => $code,
-            'admin_2fa_expires' => now()->addMinutes(5)->addSeconds(5),
-        ]);
-
-        // Send code via email
-        Mail::raw("Your admin verification code is: $code", function ($message) use ($user) {
-            $message->to($user->email)
-                    ->from(config('mail.from.address'), config('mail.from.name'))
-                    ->subject('Admin Verification Code');
-        });
-
-        return response()->json(['success' => true]);
-    }
-
-    // Verify 2FA code before allowing sensitive actions
-    public function verify2FACode(Request $request)
-    {
-        $inputCode = $request->input('code');
-        $storedCode = session('admin_2fa_code');
-        $expiresAt = session('admin_2fa_expires');
-
-        if (!$storedCode || !$expiresAt || now()->isAfter($expiresAt)) {
-            return response()->json(['success' => false, 'message' => 'Code expired or invalid']);
-        }
-
-        if ($inputCode == $storedCode) {
-            session()->forget(['admin_2fa_code', 'admin_2fa_expires']);
-            session(['admin_2fa_verified' => true, 'admin_2fa_verified_at' => now()]);
-            return response()->json(['success' => true]);
-        }
-
-        return response()->json(['success' => false, 'message' => 'Invalid code']);
-    }
+    // 2FA moved to TwoFactorController
 
     /**
      * ======================
@@ -70,25 +29,9 @@ class AdminController extends Controller
      * ======================
      */
 
-    public function account()
-    {
-        $admin = Auth::user();
-        return view('admin.admin_account', compact('admin'));
-    }
+    // Admin account page moved to AdminAccountController
 
-    public function settings()
-    {
-        $settings = [
-            'system_name' => 'OLIN Learning Management System',
-            'version' => '1.0.0',
-            'last_updated' => Carbon::now()->subDays(7),
-            'maintenance_mode' => false,
-            'registration_enabled' => true,
-            'email_verification_required' => true,
-        ];
-
-        return view('admin.settings', compact('settings'));
-    }
+    // Settings now handled by SettingsController
 
     /**
      * ======================
@@ -96,29 +39,7 @@ class AdminController extends Controller
      * ======================
      */
 
-    public function reportsLogs()
-    {
-        $logs = [
-            [
-                'id' => 1,
-                'type' => 'System',
-                'level' => 'info',
-                'message' => 'User login successful',
-                'timestamp' => Carbon::now()->subMinutes(15),
-                'user_id' => 5,
-            ],
-            [
-                'id' => 2,
-                'type' => 'Security',
-                'level' => 'warning',
-                'message' => 'Failed login attempt',
-                'timestamp' => Carbon::now()->subHours(2),
-                'user_id' => null,
-            ],
-        ];
-
-        return view('admin.reports_logs', compact('logs'));
-    }
+    // Reports now handled by ReportLogController
 
     /**
      * ======================
@@ -126,72 +47,7 @@ class AdminController extends Controller
      * ======================
      */
 
-    public function help()
-    {
-        $helpTopics = [
-            'Getting Started' => [
-                'System Overview',
-                'User Management',
-                'Course Management',
-                'Assessment Creation',
-            ],
-            'User Management' => [
-                'Adding Users',
-                'Managing Roles',
-                'User Permissions',
-                'Account Settings',
-            ],
-            'Course Management' => [
-                'Creating Courses',
-                'Managing Content',
-                'Student Enrollment',
-                'Progress Tracking',
-            ],
-            'Reports & Analytics' => [
-                'Generating Reports',
-                'System Logs',
-                'Performance Metrics',
-                'Data Export',
-            ],
-        ];
-
-        return view('admin.help', compact('helpTopics'));
-    }
-
-    /**
-     * Dedicated Admin Help subsections
-     */
-    public function helpFaqs()
-    {
-        $faqs = [
-            ['q' => 'How do I reset an administrator password?', 'a' => 'Navigate to User Management, locate the admin user, and choose Reset Password. A temporary password email will be sent.'],
-            ['q' => 'Why can’t I see any courses?', 'a' => 'Ensure an active school context is selected in Settings (Super Admin) or that you are assigned to a school.'],
-            ['q' => 'How do I enable two-factor authentication?', 'a' => '2FA is triggered automatically for sensitive actions like course deletion or update. Email codes are generated per session.'],
-            ['q' => 'How to assign a School Admin?', 'a' => 'Create a user with role school_admin and link them to a school via Settings > School Management.'],
-        ];
-        return view('admin.help.faqs', compact('faqs'));
-    }
-
-    public function helpDocs()
-    {
-        $docs = [
-            ['title' => 'System Architecture Overview', 'slug' => 'system-architecture', 'updated' => now()->subDays(3)],
-            ['title' => 'API Authentication Guide', 'slug' => 'api-authentication', 'updated' => now()->subDays(5)],
-            ['title' => 'Course Lifecycle Management', 'slug' => 'course-lifecycle', 'updated' => now()->subDays(10)],
-            ['title' => 'Assessment & Grading Flow', 'slug' => 'assessment-grading', 'updated' => now()->subDays(14)],
-        ];
-        return view('admin.help.docs', compact('docs'));
-    }
-
-    public function helpSupport()
-    {
-        $channels = [
-            ['name' => 'Email Support', 'contact' => 'support@olin.test', 'sla' => '24h Response'],
-            ['name' => 'Priority Hotline', 'contact' => '+1-800-555-0123', 'sla' => 'Immediate (Critical Only)'],
-            ['name' => 'Status Page', 'contact' => 'https://status.olin.test', 'sla' => 'Real-time'],
-        ];
-        return view('admin.help.support', compact('channels'));
-    }
+    // Help pages removed from layout; legacy actions removed
 
     // Course Management functionality moved to CourseManagementController
 }

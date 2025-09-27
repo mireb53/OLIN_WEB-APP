@@ -188,38 +188,7 @@
     </div>
 </section>
 
-<!-- C. Administrator Help Section -->
-<section class="help-card">
-    <h2 class="section-title">🆘 Administrator Support</h2>
-    
-    <div class="help-content">
-        <div class="help-options">
-            <a id="adminFaqsBtn" href="{{ route('admin.help.faqs') }}" class="help-option-btn">
-                <div class="help-icon">❓</div>
-                <div class="help-text">
-                    <h3>Admin FAQs</h3>
-                    <p>Administrator-specific frequently asked questions</p>
-                </div>
-            </a>
-            
-            <a id="systemDocsBtn" href="{{ route('admin.help.docs') }}" class="help-option-btn">
-                <div class="help-icon">📚</div>
-                <div class="help-text">
-                    <h3>System Documentation</h3>
-                    <p>Technical documentation, API guides, and system manuals</p>
-                </div>
-            </a>
-            
-            <a id="contactSupportBtn" href="{{ route('admin.help.support') }}" class="help-option-btn priority-support">
-                <div class="help-icon">🚨</div>
-                <div class="help-text">
-                    <h3>Contact IT Support</h3>
-                    <p>Priority support for administrators with escalation</p>
-                </div>
-            </a>
-        </div>
-    </div>
-</section>
+<!-- C. Administrator Help Section (removed per layout update) -->
 
 <!-- D. Administrator Log Out Section -->
 <section class="logout-card">

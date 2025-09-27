@@ -13,8 +13,7 @@
     </div>
 
     <div class="mt-10 flex gap-4">
-      <a href="{{ route('admin.help') }}" class="px-4 py-2 rounded-lg bg-slate-100 text-slate-700 hover:bg-slate-200">Back to Help Home</a>
-      <a href="{{ route('admin.help.docs') }}" class="px-4 py-2 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700">View Documentation</a>
+  <!-- Help routes removed: route('admin.help') and route('admin.help.docs') no longer exist -->
     </div>
   </main>
 </x-layoutAdmin>

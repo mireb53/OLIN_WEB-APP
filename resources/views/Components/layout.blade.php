@@ -236,32 +236,6 @@
                         <div class="nav-indicator"></div>
                     </a>
                 </div>
-
-                <div class="nav-section">
-                    <div class="nav-section-title">Analytics</div>
-                    
-                    <a href="#" 
-                       class="nav-item">
-                        <div class="nav-icon">
-                            <i class="fas fa-chart-bar"></i>
-                        </div>
-                        <span class="nav-text">Reports</span>
-                        <div class="nav-indicator"></div>
-                    </a>
-                </div>
-
-                <div class="nav-section">
-                    <div class="nav-section-title">Support</div>
-                    
-                    <a href="#" 
-                       class="nav-item">
-                        <div class="nav-icon">
-                            <i class="fas fa-question-circle"></i>
-                        </div>
-                        <span class="nav-text">Help Center</span>
-                        <div class="nav-indicator"></div>
-                    </a>
-                </div>
             </nav>
         </aside>
 

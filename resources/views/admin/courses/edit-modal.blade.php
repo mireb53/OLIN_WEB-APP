@@ -1,179 +1,110 @@
 <!-- resources/views/admin/courses/edit-modal.blade.php -->
 <div id="editCourseModal" class="fixed inset-0 bg-black bg-opacity-50 hidden z-50 flex items-center justify-center">
-    <div class="bg-white rounded-2xl shadow-2xl p-6 max-w-2xl w-full mx-4 border-t-8 border-blue-600">
-        <div class="flex items-center justify-between mb-4">
-            <h3 class="text-2xl font-bold text-slate-800">Edit Course</h3>
-            <button onclick="closeEditModal()" class="text-gray-500 hover:text-gray-800 text-2xl">&times;</button>
+    <div id="modalContainer" class="bg-white text-gray-800 rounded-2xl shadow-2xl p-6 max-w-lg w-full mx-4 relative transition-colors duration-300">
+        
+        <!-- Top Right Controls -->
+        <div class="absolute top-4 right-4 flex items-center gap-2">
+            <!-- Dark Mode Toggle -->
+            <button type="button" id="toggleModeBtn" 
+                class="text-2xl px-2 py-1 rounded-full hover:bg-gray-200 transition dark:hover:bg-gray-700">
+                🌙
+            </button>
+            <!-- Close button -->
+            <button class="text-gray-500 hover:text-red-500 text-2xl transition" onclick="closeEditModal()" aria-label="Close">&times;</button>
         </div>
 
-        <div id="editFormError" class="text-red-500 font-semibold mb-3 hidden p-3 bg-red-50 rounded-lg"></div>
+        <!-- Title with futuristic edit icon -->
+        <h3 class="text-2xl font-bold mb-4 flex items-center gap-2 mt-8">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5M18.5 2.5a2.121 2.121 0 113 3L12 15l-4 1 1-4 9.5-9.5z" />
+            </svg>
+            Edit Course
+        </h3>
 
-        <form id="editCourseForm" class="space-y-4">
+        <!-- Form -->
+        <form id="modalEditForm" method="POST" class="space-y-4">
             @csrf
             @method('PUT')
-            <input type="hidden" id="editInstructorId" name="instructor_id">
-
-            <!-- Instructor Info (Readonly) -->
+            
+            <!-- Title -->
             <div>
-                <label class="block font-semibold mb-1 text-slate-700">Instructor</label>
-                <div id="editInstructorInfo" class="px-4 py-2 bg-gray-100 rounded-lg text-slate-600"></div>
+                <label class="block font-semibold mb-1">Title</label>
+                <input type="text" id="modalEditTitle" name="title"
+                    class="w-full px-3 py-2 rounded-lg bg-gray-100 border border-gray-300 text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500 transition"
+                    required>
             </div>
 
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <!-- Course Title -->
-                <div>
-                    <label class="block font-semibold mb-1 text-slate-700">Course Title</label>
-                    <input id="editTitle" name="title" type="text" class="w-full px-4 py-2 border rounded-lg" required>
-                </div>
-                <!-- Course Code -->
-                <div>
-                    <label class="block font-semibold mb-1 text-slate-700">Course Code</label>
-                    <input id="editCode" name="course_code" type="text" class="w-full px-4 py-2 border rounded-lg">
-                </div>
-                <!-- Status -->
-                <div>
-                    <label class="block font-semibold mb-1 text-slate-700">Status</label>
-                    <select id="editStatus" name="status" class="w-full px-4 py-2 border rounded-lg bg-white">
-                        <option value="published">Published</option>
-                        <option value="draft">Draft</option>
-                        <option value="archived">Archived</option>
-                    </select>
-                </div>
-                <!-- Program -->
-                <div>
-                    <label class="block font-semibold mb-1 text-slate-700">Program</label>
-                    <select id="editProgram" name="program_id" class="w-full px-4 py-2 border rounded-lg bg-white">
-                        <option value="">-- Select Program --</option>
-                        @foreach($programs as $p)
-                            <option value="{{ $p->id }}">{{ $p->name }}</option>
-                        @endforeach
-                    </select>
-                </div>
-                <!-- Credits -->
-                <div>
-                    <label class="block font-semibold mb-1 text-slate-700">Credits</label>
-                    <input id="editCredits" name="credits" type="number" step="0.5" min="0" class="w-full px-4 py-2 border rounded-lg">
-                </div>
-            </div>
-
-            <!-- Description -->
+            <!-- Status -->
             <div>
-                <label class="block font-semibold mb-1 text-slate-700">Description</label>
-                <textarea id="editDescription" name="description" rows="3" class="w-full px-4 py-2 border rounded-lg"></textarea>
+                <label class="block font-semibold mb-1">Status</label>
+                <select id="modalEditStatus" name="status"
+                    class="w-full px-3 py-2 rounded-lg bg-gray-100 border border-gray-300 text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500 transition"
+                    required>
+                    <option value="published">Published</option>
+                    <option value="draft">Draft</option>
+                    <option value="archived">Archived</option>
+                </select>
             </div>
 
             <!-- 2FA Step 1 -->
-            <div id="modalEdit2FAStep1" class="pt-4">
-                <button type="button" onclick="request2FACode('edit')" class="w-full bg-blue-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-blue-700">Request Code to Save</button>
+            <div id="modalEdit2FAStep1">
+                <button type="button" onclick="requestEdit2FACode(true)" 
+                    class="w-full bg-gradient-to-r from-blue-600 to-blue-400 text-white font-bold py-2 px-4 rounded-lg shadow hover:shadow-lg transition">
+                    Send Verification Code to Email
+                </button>
+                <button type="button" onclick="closeEditModal()" 
+                    class="w-full bg-gray-300 text-gray-800 py-2 px-4 rounded-lg hover:bg-gray-400 transition mt-2">
+                    Cancel
+                </button>
             </div>
 
             <!-- 2FA Step 2 -->
-            <div id="modalEdit2FAStep2" class="hidden pt-4">
-                <label class="block text-slate-700 font-semibold mb-2">Enter Verification Code</label>
-                <input type="text" id="modalEdit2FACodeInput" class="w-full px-4 py-2 border rounded-lg mb-2" placeholder="Enter code from email">
-                <div id="modalEdit2FAError" class="text-red-500 mt-1 text-center"></div>
-            </div>
-
-            <!-- Buttons -->
-            <div class="flex justify-end gap-3 pt-2">
-                <button type="button" onclick="closeEditModal()" class="px-5 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300">Cancel</button>
-                <button type="button" id="saveCourseBtn" class="px-6 py-2 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 disabled:bg-gray-400" disabled>Save Changes</button>
+            <div id="modalEdit2FAStep2" class="hidden mt-3">
+                <label class="block font-semibold mb-2">Enter Verification Code</label>
+                <input type="text" id="modalEdit2FACodeInput"
+                    class="w-full px-4 py-2 bg-gray-100 border border-gray-300 text-gray-800 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition mb-3"
+                    placeholder="Enter code">
+                <div id="modalEdit2FAError" class="text-red-500 mt-2 text-center"></div>
+                <div class="flex gap-2 justify-end">
+                    <button type="button" onclick="closeEditModal()" 
+                        class="bg-gray-200 text-gray-800 py-2 px-4 rounded-lg hover:bg-gray-300 transition">
+                        Cancel
+                    </button>
+                    <button type="button" id="modalVerifySaveBtn" 
+                        class="bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 transition">
+                        Verify & Save
+                    </button>
+                </div>
             </div>
         </form>
     </div>
 </div>
 
 <script>
-    let editingCourseId = null;
+    const modal = document.getElementById("modalContainer");
+    const toggleBtn = document.getElementById("toggleModeBtn");
+    let darkMode = false;
 
-    function populateEditModal(course) {
-        editingCourseId = course.id;
-        document.getElementById('editInstructorId').value = course.instructor_id;
-        document.getElementById('editInstructorInfo').textContent = course.instructor ? `${course.instructor.name} (${course.instructor.email})` : 'N/A';
-        document.getElementById('editTitle').value = course.title;
-        document.getElementById('editCode').value = course.course_code;
-        document.getElementById('editStatus').value = course.status;
-        document.getElementById('editProgram').value = course.program_id;
-        document.getElementById('editDescription').value = course.description || '';
-        document.getElementById('editCredits').value = course.credits || '';
-        
-        document.getElementById('editFormError').textContent = '';
-        document.getElementById('editFormError').classList.add('hidden');
-        document.getElementById('modalEdit2FAStep1').classList.remove('hidden');
-        document.getElementById('modalEdit2FAStep2').classList.add('hidden');
-        document.getElementById('modalEdit2FACodeInput').value = '';
-        document.getElementById('modalEdit2FAError').textContent = '';
-        document.getElementById('saveCourseBtn').disabled = true;
+    toggleBtn.addEventListener("click", () => {
+        darkMode = !darkMode;
+        if (darkMode) {
+            modal.classList.remove("bg-white", "text-gray-800");
+            modal.classList.add("bg-gray-900", "text-gray-200");
+            toggleBtn.textContent = "☀️";
 
-        document.getElementById('editCourseModal').classList.remove('hidden');
-    }
-
-    function closeEditModal() { 
-        document.getElementById('editCourseModal').classList.add('hidden');
-        editingCourseId = null;
-    }
-
-    document.addEventListener('DOMContentLoaded', function() {
-        const saveBtn = document.getElementById('saveCourseBtn');
-        if(saveBtn) {
-            saveBtn.addEventListener('click', function() {
-                const form = document.getElementById('editCourseForm');
-                const formData = new FormData(form);
-                const data = Object.fromEntries(formData.entries());
-                const code = document.getElementById('modalEdit2FACodeInput').value;
-                const errorEl = document.getElementById('editFormError');
-                errorEl.textContent = '';
-                errorEl.classList.add('hidden');
-
-                fetch(`{{ route('admin.verify-2fa') }}`, {
-                    method: 'POST',
-                    headers: CSRF_HEADERS,
-                    body: JSON.stringify({ code })
-                })
-                .then(r => r.json().then(authData => ({ ok: r.ok, ...authData })))
-                .then(authData => {
-                    if (!authData.ok || !authData.success) {
-                        document.getElementById('modalEdit2FAError').textContent = authData.message || 'Invalid 2FA code.';
-                        throw new Error(authData.message || 'Invalid 2FA code.');
-                    }
-                    
-                    return fetch(`/admin/courses/${editingCourseId}`, {
-                        method: 'PUT',
-                        headers: CSRF_HEADERS,
-                        body: JSON.stringify(data)
-                    });
-                })
-                .then(r => r.json().then(courseData => ({ ok: r.ok, ...courseData })))
-                .then(courseData => {
-                    if (!courseData.ok) throw courseData;
-
-                    if (courseData.success && courseData.course) {
-                        if(window.updateCourseInTable) {
-                            window.updateCourseInTable(courseData.course);
-                        } else {
-                            location.reload();
-                        }
-                        closeEditModal();
-                    }
-                })
-                .catch(err => {
-                    let errorMessage = 'Failed to update course.';
-                    if (err && err.errors) {
-                        errorMessage = Object.values(err.errors).flat().join(' ');
-                    } else if (err && err.message) {
-                        errorMessage = err.message;
-                    }
-                    errorEl.textContent = errorMessage;
-                    errorEl.classList.remove('hidden');
-                });
+            document.querySelectorAll("#modalContainer input, #modalContainer select").forEach(el => {
+                el.classList.remove("bg-gray-100", "border-gray-300", "text-gray-800");
+                el.classList.add("bg-gray-800", "border-gray-600", "text-gray-200");
             });
-        }
+        } else {
+            modal.classList.remove("bg-gray-900", "text-gray-200");
+            modal.classList.add("bg-white", "text-gray-800");
+            toggleBtn.textContent = "🌙";
 
-        const codeInput = document.getElementById('modalEdit2FACodeInput');
-        if(codeInput) {
-            codeInput.addEventListener('input', function() {
-                document.getElementById('saveCourseBtn').disabled = this.value.trim().length < 6;
-                document.getElementById('modalEdit2FAError').textContent = '';
+            document.querySelectorAll("#modalContainer input, #modalContainer select").forEach(el => {
+                el.classList.remove("bg-gray-800", "border-gray-600", "text-gray-200");
+                el.classList.add("bg-gray-100", "border-gray-300", "text-gray-800");
             });
         }
     });

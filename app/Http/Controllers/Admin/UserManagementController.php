@@ -105,7 +105,7 @@ class UserManagementController extends Controller
         
         $users = $query->with('school')
                       ->orderBy('created_at', 'desc')
-                      ->paginate(15)
+                      ->paginate(8)
                       ->appends($request->except('page'));
 
         return view('admin.user_management', compact(
@@ -281,84 +281,109 @@ class UserManagementController extends Controller
     /**
      * Bulk import students from CSV/Excel file
      */
-    public function bulkImport(Request $request)
-    {
-        $actor = Auth::user();
-        $this->authorize('create', User::class); // permission to bulk import
+   public function bulkImport(Request $request)
+{
+    $actor = Auth::user();
+    $this->authorize('create', User::class);
 
-        $request->validate([
-            'file' => 'required|file|mimes:csv,xlsx,xls|max:2048'
-        ]);
+    $request->validate([
+        'file' => 'required|file|mimes:csv,xlsx,xls|max:2048'
+    ]);
 
+    try {
         $file = $request->file('file');
-        $path = $file->getRealPath();
-        
-        try {
-            $data = [];
-            
-            if ($file->getClientOriginalExtension() === 'csv') {
-                $csvData = array_map('str_getcsv', file($path));
-                $header = array_shift($csvData);
-                
-                foreach ($csvData as $row) {
+        $extension = $file->getClientOriginalExtension();
+
+        $data = [];
+
+        // ✅ Handle CSV manually
+        if ($extension === 'csv') {
+            $csvData = array_map('str_getcsv', file($file->getRealPath()));
+            $header = array_map('trim', array_shift($csvData));
+            foreach ($csvData as $row) {
+                if (count($header) === count($row)) {
                     $data[] = array_combine($header, $row);
                 }
             }
-
-            $imported = 0;
-            $errors = [];
-
-            foreach ($data as $row) {
-                try {
-                    if (empty($row['Name']) || empty($row['Email']) || empty($row['Password'])) {
-                        $errors[] = "Missing required fields for row: " . json_encode($row);
-                        continue;
-                    }
-
-                    if (User::where('email', $row['Email'])->exists()) {
-                        $errors[] = "Email {$row['Email']} already exists";
-                        continue;
-                    }
-
-                    // Determine school assignment
-                    $schoolId = null;
-                    if ($actor && $actor->isSuperAdmin()) {
-                        // Super Admin: Use active_school session
-                        $schoolId = Session::get('active_school') ?: $request->school_id;
-                    } elseif ($actor && $actor->isSchoolAdmin()) {
-                        // School Admin: Force their own school
-                        $schoolId = $actor->school_id;
-                    }
-
-                    User::create([
-                        'name' => $row['Name'],
-                        'email' => $row['Email'],
-                        'password' => Hash::make($row['Password']),
-                        'role' => 'student',
-                        'status' => 'active',
-                        'email_verified_at' => now(),
-                        'school_id' => $schoolId,
-                    ]);
-
-                    $imported++;
-                } catch (Exception $e) {
-                    $errors[] = "Error importing {$row['Email']}: " . $e->getMessage();
-                }
-            }
-
-            $message = "Successfully imported {$imported} students.";
-            if (!empty($errors)) {
-                $message .= " Errors: " . implode(', ', $errors);
-            }
-
-            return redirect()->route('admin.user_management', ['role' => 'student'])
-                ->with('success', $message);
-
-        } catch (Exception $e) {
-            return redirect()->route('admin.user_management')
-                ->with('error', 'Error processing file: ' . $e->getMessage());
+        } else {
+            // ✅ Handle Excel via Laravel Excel
+            $data = Excel::toArray([], $file)[0]; // first sheet
+            $header = array_map('trim', array_shift($data));
+            $data = array_map(fn($row) => array_combine($header, $row), $data);
         }
+
+        $imported = 0;
+        $errors = [];
+
+        foreach ($data as $row) {
+            try {
+                if (empty($row['Name']) || empty($row['Email']) || empty($row['Password'])) {
+                    $errors[] = "Missing required fields for row: " . json_encode($row);
+                    continue;
+                }
+
+                if (User::where('email', $row['Email'])->exists()) {
+                    $errors[] = "Email {$row['Email']} already exists";
+                    continue;
+                }
+
+                // Default values
+                $role   = $row['Role']   ?? 'student';
+                $status = $row['Status'] ?? 'active';
+
+                // ✅ Validate role & status against your system
+                $validRoles  = ['student', 'instructor', 'schoolAdmin', 'superAdmin'];
+                $validStatus = ['active', 'inactive', 'suspended'];
+
+                if (!in_array($role, $validRoles)) {
+                    $errors[] = "Invalid role '{$row['Role']}' for email {$row['Email']}";
+                    continue;
+                }
+
+                if (!in_array($status, $validStatus)) {
+                    $errors[] = "Invalid status '{$row['Status']}' for email {$row['Email']}";
+                    continue;
+                }
+
+                // Determine school assignment
+                $schoolId = null;
+                if ($actor && $actor->isSuperAdmin()) {
+                    $schoolId = Session::get('active_school') ?: $request->school_id;
+                } elseif ($actor && $actor->isSchoolAdmin()) {
+                    $schoolId = $actor->school_id;
+                }
+
+                // ✅ Create user
+                User::create([
+                    'name'              => $row['Name'],
+                    'email'             => $row['Email'],
+                    'password'          => Hash::make($row['Password']),
+                    'role'              => $role,
+                    'status'            => $status,
+                    'email_verified_at' => now(),
+                    'school_id'         => $schoolId,
+                ]);
+
+                $imported++;
+            } catch (Exception $e) {
+                $errors[] = "Error importing {$row['Email']}: " . $e->getMessage();
+            }
+        }
+
+        $message = "Successfully imported {$imported} users.";
+        if (!empty($errors)) {
+            $message .= " Errors: " . implode(', ', $errors);
+        }
+
+        return redirect()->route('admin.user_management', ['role' => 'student'])
+            ->with('success', $message);
+
+    } catch (Exception $e) {
+        return redirect()->route('admin.user_management')
+            ->with('error', 'Error processing file: ' . $e->getMessage());
     }
+}
+
 
     /**
      * Remove the specified user from storage

@@ -4,6 +4,8 @@ use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\Auth\RegisterController;
 use App\Http\Controllers\Auth\SocialLoginController;
 use App\Http\Controllers\Admin\AdminController;
+use App\Http\Controllers\Admin\TwoFactorController;
+use App\Http\Controllers\Admin\AdminAccountController;
 use App\Http\Controllers\Admin\AdminDashboardController;
 use App\Http\Controllers\Admin\UserManagementController;
 use App\Http\Controllers\Admin\CourseManagementController;
@@ -107,7 +109,7 @@ Route::middleware(['auth:web', 'role:super_admin,school_admin', 'verified'])->gr
     Route::get('/admin/logs/export', [ReportLogController::class, 'exportLogs'])->name('admin.logs.export');
 
     // Admin Account/Profile route (profile page only)
-    Route::get('/admin/account', [SettingsController::class, 'index'])->name('admin.account');
+    Route::get('/admin/account', [AdminAccountController::class, 'index'])->name('admin.account');
 
     // Admin Settings routes (system & school settings)
     Route::get('/admin/settings', [SettingsController::class, 'edit'])->name('admin.settings');
@@ -122,26 +124,24 @@ Route::middleware(['auth:web', 'role:super_admin,school_admin', 'verified'])->gr
     Route::get('/admin/course-management', [CourseManagementController::class, 'index'])->name('admin.course_management');
     Route::get('/admin/courses/search', [CourseManagementController::class, 'search'])->name('admin.courses.search');
     Route::get('/admin/courses', [CourseManagementController::class, 'index'])->name('admin.courses.index');
+    Route::get('/admin/courses/create', [CourseManagementController::class, 'create'])->name('admin.courses.create');
     Route::post('/admin/courses', [CourseManagementController::class, 'store'])->name('admin.courses.store');
     Route::get('/admin/courses/find-instructor', [CourseManagementController::class, 'findInstructor'])->name('admin.courses.findInstructor');
     Route::get('/admin/courses/{course}', [CourseManagementController::class, 'show'])->name('admin.courses.show');
-    Route::get('/admin/courses/{course}/details', [CourseManagementController::class, 'showDetails'])->name('admin.courses.showDetails');
+    Route::get('/admin/courses/{course}/details', [CourseManagementController::class, 'showDetails'])->name('admin.courses.details');
     Route::get('/admin/courses/{course}/edit', [CourseManagementController::class, 'edit'])->name('admin.courses.edit');
     Route::put('/admin/courses/{course}', [CourseManagementController::class, 'update'])->name('admin.courses.update');
     Route::delete('/admin/courses/{course}', [CourseManagementController::class, 'destroy'])->name('admin.courses.destroy');
 
-    Route::get('/admin/help', [AdminController::class, 'help'])->name('admin.help');
-    Route::get('/admin/help/faqs', [AdminController::class, 'helpFaqs'])->name('admin.help.faqs');
-    Route::get('/admin/help/docs', [AdminController::class, 'helpDocs'])->name('admin.help.docs');
-    Route::get('/admin/help/support', [AdminController::class, 'helpSupport'])->name('admin.help.support');
+    // Help routes removed (no longer in layout)
     
     // Admin 2FA routes (for admin account management)
-    Route::post('/admin/request-2fa', [AdminController::class, 'request2FACode'])->name('admin.request-2fa');
-    Route::post('/admin/verify-2fa', [AdminController::class, 'verify2FACode'])->name('admin.verify-2fa');
+    Route::post('/admin/request-2fa', [TwoFactorController::class, 'request2FACode'])->name('admin.request-2fa');
+    Route::post('/admin/verify-2fa', [TwoFactorController::class, 'verify2FACode'])->name('admin.verify-2fa');
 
     // Backward compatibility for older blade/js expecting admin.users.* route names
-    Route::post('/admin/users/request-2fa', [AdminController::class, 'request2FACode'])->name('admin.users.request-2fa');
-    Route::post('/admin/users/verify-2fa', [AdminController::class, 'verify2FACode'])->name('admin.users.verify-2fa');
+    Route::post('/admin/users/request-2fa', [TwoFactorController::class, 'request2FACode'])->name('admin.users.request-2fa');
+    Route::post('/admin/users/verify-2fa', [TwoFactorController::class, 'verify2FACode'])->name('admin.users.verify-2fa');
 });
 
 
