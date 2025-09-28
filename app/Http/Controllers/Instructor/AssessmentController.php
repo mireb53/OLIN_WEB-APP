@@ -326,7 +326,8 @@ class AssessmentController extends Controller
                 'title' => 'required|string|max:255',
                 'type' => ['required', Rule::in(['assignment', 'activity', 'project'])], // Only allow assignment/activity here
                 'description' => 'nullable|string',
-                'assessment_file' => 'nullable|file|mimes:pdf,doc,docx,xls,xlsx,ppt,pptx,txt,zip,rar|max:20480', // 20MB
+                // Match B: allow any file type up to 100MB
+                'assessment_file' => 'nullable|file|max:102400', // 100MB
                 'available_at' => 'nullable|date',
                 'unavailable_at' => 'nullable|date|after_or_equal:available_at', // Fixed typo here
                 'duration_minutes' => 'nullable|integer|min:0', // Added for assignments/activities/projects
@@ -414,7 +415,8 @@ class AssessmentController extends Controller
             $validatedData = $request->validate([
                 'title' => 'required|string|max:255',
                 'description' => 'nullable|string',
-                'assessment_file' => 'nullable|file|mimes:pdf,doc,docx,xls,xlsx,ppt,pptx,txt,zip,rar|max:20480', // 20MB
+                // Match B: allow any file type up to 100MB
+                'assessment_file' => 'nullable|file|max:102400', // 100MB
                 'clear_assessment_file' => 'nullable|boolean', // New field for clearing file
                 'available_at' => 'nullable|date',
                 'unavailable_at' => 'nullable|date|after_or_equal:available_at',

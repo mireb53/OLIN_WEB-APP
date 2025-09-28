@@ -1055,6 +1055,12 @@
 
         <script>
             document.addEventListener('DOMContentLoaded', function() {
+                // Helper to build a public URL that works when the app is hosted under a subfolder
+                const appBase = (document.querySelector('meta[name="app-base"]')?.getAttribute('content') || '').replace(/^\/+|\/+$/g, '');
+                const toPublicUrl = (relativePath) => {
+                    // Ensure leading slash so it's absolute from domain root + base
+                    return appBase ? `/${appBase}/${relativePath}` : `/${relativePath}`;
+                };
                 // Profile form save functionality
                 document.getElementById('saveProfileBtn')?.addEventListener('click', function() {
                     // Form will submit normally via HTML form action
@@ -1091,6 +1097,15 @@
                                     `;
                                     // Remove the delete button from the page
                                     deleteBtn.remove();
+                                    // Also update header avatar to initial
+                                    const headerImg = document.getElementById('headerProfileImg');
+                                    const headerInitial = document.getElementById('headerProfileInitial');
+                                    if (headerImg) {
+                                        headerImg.remove();
+                                    }
+                                    if (headerInitial) {
+                                        headerInitial.textContent = data.user_initial;
+                                    }
                                     showSuccessMessage('Profile photo deleted successfully!');
                                 } else {
                                     alert(data.message || 'An error occurred.');
@@ -1444,13 +1459,29 @@
                                 if (data.success) {
                                     // Update profile image on page
                                     const profileImg = document.getElementById('profileImg');
+                                    // Prefer the route-served URL to avoid symlink/base-path issues
+                                    const newUrl = data.image_route || (data.image_public_path ? toPublicUrl(data.image_public_path) : (data.image_url || ''));
                                     if (profileImg) {
-                                        profileImg.src = data.image_url;
+                                        // Cache-busting to ensure new image appears immediately
+                                        profileImg.src = newUrl + '?t=' + Date.now();
                                     } else {
                                         // If no image element exists, create one
                                         const photoContainer = document.getElementById('profilePhotoContainer');
                                         if (photoContainer) {
-                                            photoContainer.innerHTML = `<img src="${data.image_url}" alt="Profile Photo" class="profile-img" id="profileImg">`;
+                                            photoContainer.innerHTML = `<img src="${newUrl}?t=${Date.now()}" alt="Profile Photo" class="profile-img" id="profileImg">`;
+                                        }
+                                    }
+
+                                    // Update header avatar image if present
+                                    const headerImg = document.getElementById('headerProfileImg');
+                                    const headerInitial = document.getElementById('headerProfileInitial');
+                                    if (headerImg) {
+                                        headerImg.src = newUrl + '?t=' + Date.now();
+                                    } else if (headerInitial) {
+                                        // Replace initial badge with image by injecting an <img>
+                                        const headerLink = document.getElementById('headerProfileLink');
+                                        if (headerLink) {
+                                            headerLink.innerHTML = `<img id="headerProfileImg" class="w-10 h-10 rounded-full object-cover cursor-pointer transition-transform duration-300 hover:scale-105" src="${newUrl}?t=${Date.now()}" alt="{{ Auth::user()->name }}'s profile image">`;
                                         }
                                     }
                                     
@@ -1552,8 +1583,13 @@
         <div class="profile-photo-section">
             <div class="photo-container">
                 <div class="profile-photo" id="profilePhotoContainer">
+                    @php
+                        $profileImageUrl = Auth::user()->profile_image 
+                            ? route('media.profile', ['filename' => basename(Auth::user()->profile_image)])
+                            : null;
+                    @endphp
                     @if(Auth::user()->profile_image)
-                        <img src="{{ asset('storage/' . Auth::user()->profile_image) }}" alt="Profile Photo" class="profile-img" id="profileImg">
+                        <img src="{{ $profileImageUrl }}" alt="Profile Photo" class="profile-img" id="profileImg">
                     @else
                         <div class="profile-img bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-4xl font-bold">
                             {{ strtoupper(substr(Auth::user()->name, 0, 1)) }}

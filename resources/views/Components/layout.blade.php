@@ -8,6 +8,8 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <meta name="csrf-token" content="{{ csrf_token() }}">
+    @php $appBase = trim(request()->getBaseUrl(), '/'); @endphp
+    <meta name="app-base" content="{{ $appBase }}">
     <style>
         body {
             font-family: "Inter", sans-serif;
@@ -161,20 +163,37 @@
     <div class="flex items-center space-x-4 relative z-40">
       <button id="notificationBtn" class="relative p-2 text-white hover:text-gray-200 transition-colors duration-200 focus:outline-none">
         <i class="fa-solid fa-bell fa-lg"></i>
-        <span id="notificationBadge" class="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center hidden"></span>
+    <span id="notificationBadge" class="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-5 w-5 items-center justify-center hidden"></span>
       </button>
 
       <div class="relative">
+        @php
+            $profileUrl = '#';
+            if (Auth::check()) {
+                $role = Auth::user()->role ?? null;
+                if ($role === 'instructor') {
+                    $profileUrl = route('instructor.showProfile');
+                } elseif (in_array($role, ['super_admin','school_admin'])) {
+                    $profileUrl = route('admin.account');
+                }
+            }
+        @endphp
+        @php
+            $baseUrlPath = trim(request()->getBaseUrl(), '/');
+            $headerImageUrl = Auth::user()->profile_image 
+                ? route('media.profile', ['filename' => basename(Auth::user()->profile_image)])
+                : null;
+        @endphp
         @if(Auth::user()->profile_image)
-            <a href="#">
-                <img class="w-10 h-10 rounded-full object-cover cursor-pointer transition-transform duration-300 hover:scale-105"
-                     src="{{ asset('storage/' . Auth::user()->profile_image) }}" 
+            <a id="headerProfileLink" href="{{ $profileUrl }}">
+             <img id="headerProfileImg" class="w-10 h-10 rounded-full object-cover cursor-pointer transition-transform duration-300 hover:scale-105"
+                 src="{{ $headerImageUrl }}" 
                      alt="{{ Auth::user()->name }}'s profile image">
             </a>
         @else
-            <a href="#" 
-               class="profile-icon bg-white text-[#FFFFFF] font-semibold rounded-full w-10 h-10 flex items-center justify-center cursor-pointer transition-transform duration-300 hover:scale-105">
-               {{ strtoupper(substr(Auth::user()->name, 0, 1)) }}
+            <a id="headerProfileLink" href="{{ $profileUrl }}" 
+               class="profile-icon text-white font-semibold rounded-full w-10 h-10 flex items-center justify-center cursor-pointer transition-transform duration-300 hover:scale-105">
+               <span id="headerProfileInitial">{{ strtoupper(substr(Auth::user()->name, 0, 1)) }}</span>
             </a>
         @endif
         <span class="absolute bottom-0 right-0 block w-3 h-3 bg-[#10B981] rounded-full border-2 border-[#3B82F6]"></span>
@@ -200,14 +219,7 @@
                         <div class="nav-indicator"></div>
                     </a>
 
-                    <a href="{{ route('instructor.showProfile') }}" 
-                       class="nav-item {{ Request::routeIs('instructor.showProfile') ? 'nav-item-active' : '' }}">
-                        <div class="nav-icon">
-                            <i class="fas fa-user-circle"></i>
-                        </div>
-                        <span class="nav-text">Profile</span>
-                        <div class="nav-indicator"></div>
-                    </a>
+                  
 
                     <a href="{{ route('instructor.myCourse') }}" 
                        class="nav-item {{ Request::routeIs('instructor.myCourse') ? 'nav-item-active' : '' }}">
@@ -236,6 +248,32 @@
                         <div class="nav-indicator"></div>
                     </a>
                 </div>
+
+                <!-- <div class="nav-section">
+                    <div class="nav-section-title">Analytics</div>
+                    
+                    <a href="#" 
+                       class="nav-item">
+                        <div class="nav-icon">
+                            <i class="fas fa-chart-bar"></i>
+                        </div>
+                        <span class="nav-text">Reports</span>
+                        <div class="nav-indicator"></div>
+                    </a>
+                </div>
+
+                <div class="nav-section">
+                    <div class="nav-section-title">Support</div>
+                    
+                    <a href="#" 
+                       class="nav-item">
+                        <div class="nav-icon">
+                            <i class="fas fa-question-circle"></i>
+                        </div>
+                        <span class="nav-text">Help Center</span>
+                        <div class="nav-indicator"></div>
+                    </a>
+                </div> -->
             </nav>
         </aside>
 
@@ -480,8 +518,10 @@
             if (unreadCount > 0) {
                 badge.textContent = unreadCount > 9 ? '9+' : unreadCount;
                 badge.classList.remove('hidden');
+                badge.classList.add('flex');
             } else {
                 badge.classList.add('hidden');
+                badge.classList.remove('flex');
             }
         }
 

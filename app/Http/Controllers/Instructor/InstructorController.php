@@ -336,8 +336,27 @@ class InstructorController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'Profile image updated successfully!',
-            'image_url' => asset('storage/' . $imagePath)
+            'image_url' => asset('storage/' . $imagePath),
+            // Relative public path (works under subfolders when combined with base path)
+            'image_public_path' => 'storage/' . $imagePath,
+            // Preferred route URL that streams the image and avoids symlink/base-path issues
+            'image_route' => route('media.profile', ['filename' => basename($imagePath)])
         ]);
+    }
+
+    /**
+     * Stream a profile image from the public disk to the browser.
+     * Avoids issues with symlinks and subfolder base paths.
+     */
+    public function serveProfileImage($filename)
+    {
+        $path = 'profile_images/' . $filename;
+        if (!\Illuminate\Support\Facades\Storage::disk('public')->exists($path)) {
+            return abort(404);
+        }
+
+        // Leverage Storage to set appropriate headers
+        return \Illuminate\Support\Facades\Storage::disk('public')->response($path);
     }
     public function assignSection(Request $request, $studentId)
     {
@@ -897,14 +916,17 @@ class InstructorController extends Controller
         
         $activities = $this->getRecentActivities($courses, $dateRange);
         
-        // Get read notifications from session
-        $readNotifications = session('read_notifications', []);
+        // Use DB-backed read tracking like capstone_webDashboard-B
+        $readNotificationHashes = \App\Models\InstructorNotification::where('instructor_id', $instructor->id)
+            ->where('is_read', true)
+            ->pluck('notification_hash')
+            ->toArray();
         
         // Add read status to each activity
-        $notifications = $activities->map(function ($activity) use ($readNotifications) {
-            $notificationId = md5($activity['type'] . $activity['description'] . $activity['date']);
-            $activity['id'] = $notificationId;
-            $activity['read'] = in_array($notificationId, $readNotifications);
+        $notifications = $activities->map(function ($activity) use ($readNotificationHashes) {
+            $notificationHash = md5($activity['type'] . $activity['description'] . $activity['date']);
+            $activity['id'] = $notificationHash;
+            $activity['read'] = in_array($notificationHash, $readNotificationHashes);
             return $activity;
         });
         
@@ -918,24 +940,41 @@ class InstructorController extends Controller
 
     public function markNotificationAsRead(Request $request)
     {
-        $notificationId = $request->input('notification_id');
-        $readNotifications = session('read_notifications', []);
+        $instructor = Auth::user();
+        $notificationHash = $request->input('notification_id');
         
-        if (!in_array($notificationId, $readNotifications)) {
-            $readNotifications[] = $notificationId;
-            session(['read_notifications' => $readNotifications]);
-        }
+        // Create or update notification record in database
+        \App\Models\InstructorNotification::updateOrCreate(
+            [
+                'instructor_id' => $instructor->id,
+                'notification_hash' => $notificationHash
+            ],
+            [
+                'is_read' => true,
+                'read_at' => now()
+            ]
+        );
         
         return response()->json(['success' => true]);
     }
 
     public function markAllNotificationsAsRead(Request $request)
     {
-        $notificationIds = $request->input('notification_ids', []);
-        $readNotifications = session('read_notifications', []);
+        $instructor = Auth::user();
+        $notificationHashes = $request->input('notification_ids', []);
         
-        $readNotifications = array_unique(array_merge($readNotifications, $notificationIds));
-        session(['read_notifications' => $readNotifications]);
+        foreach ($notificationHashes as $hash) {
+            \App\Models\InstructorNotification::updateOrCreate(
+                [
+                    'instructor_id' => $instructor->id,
+                    'notification_hash' => $hash
+                ],
+                [
+                    'is_read' => true,
+                    'read_at' => now()
+                ]
+            );
+        }
         
         return response()->json(['success' => true]);
     }

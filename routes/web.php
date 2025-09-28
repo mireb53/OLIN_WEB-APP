@@ -206,3 +206,6 @@ Route::middleware(['auth:web', 'role:instructor', 'verified'])->group(function (
     Route::get('/courses/{course}/assessments/{assessment}/edit/assignmentType', [AssessmentController::class, 'editAssignment'])->name('assessments.edit.assignment');
     Route::put('/courses/{course}/assessments/{assessment}/update/assignmentType', [AssessmentController::class, 'updateAssignment'])->name('assessments.update.assignment');
 });
+
+// Media serving route for profile images (works regardless of symlink/base path)
+Route::get('/media/profile/{filename}', [InstructorController::class, 'serveProfileImage'])->name('media.profile');

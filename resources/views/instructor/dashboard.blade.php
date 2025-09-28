@@ -10,7 +10,7 @@
                             <div class="relative">
                                 @if(Auth::user()->profile_image)
                                     <img class="h-16 w-16 rounded-full object-cover ring-4 ring-white shadow-md" 
-                                         src="{{ asset('storage/' . Auth::user()->profile_image) }}" 
+                                         src="{{ route('media.profile', ['filename' => basename(Auth::user()->profile_image)]) }}" 
                                          alt="{{ Auth::user()->name }}'s profile image">
                                 @else
                                     <div class="h-16 w-16 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center ring-4 ring-white shadow-md">
