@@ -4,6 +4,8 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>OLIN - Admin Page</title>
+  <link rel="icon" href="{{ asset('favicon.ico') }}" type="image/x-icon">
+  <link rel="shortcut icon" href="{{ asset('favicon.ico') }}" type="image/x-icon">
 
   <!-- Early script: set initial sidebar state from localStorage before rendering to avoid flicker -->
   <script>
@@ -42,10 +44,34 @@
   </div>
 
   <div class="flex items-center space-x-4">
-    <button class="relative p-2 text-white hover:text-gray-200">
-      <i class="fa-solid fa-bell fa-lg"></i>
-      <span class="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full"></span>
-    </button>
+    <div class="relative">
+      <button id="notificationBtn" class="relative p-2 text-white hover:text-gray-200 transition-colors duration-200 focus:outline-none">
+        <i class="fa-solid fa-bell fa-lg"></i>
+        <span id="notificationBadge" class="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-5 w-5 items-center justify-center hidden"></span>
+      </button>
+      <!-- Dropdown -->
+      <div id="notificationDropdown" class="hidden absolute right-0 mt-2 w-80 bg-white rounded-lg shadow-xl border border-gray-100 overflow-hidden z-50">
+        <div class="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
+          <div class="flex items-center gap-2 text-gray-900 font-semibold">
+            <i class="fas fa-bell text-blue-600"></i>
+            Notifications
+          </div>
+          <div class="flex items-center gap-3">
+            <button id="markAllReadBtn" class="text-xs text-blue-600 hover:text-blue-800 font-medium">Mark all as read</button>
+            <a href="{{ route('notifications.all') }}" class="text-xs text-gray-600 hover:text-gray-800">View All</a>
+          </div>
+        </div>
+        <div id="notificationsLoading" class="px-4 py-4 text-center">
+          <i class="fas fa-spinner fa-spin text-gray-400"></i>
+          <p class="text-sm text-gray-500 mt-2">Loading notifications...</p>
+        </div>
+        <div id="noNotifications" class="hidden px-4 py-6 text-center">
+          <i class="fas fa-bell-slash text-gray-300 text-2xl mb-2"></i>
+          <p class="text-sm text-gray-500">No notifications yet</p>
+        </div>
+        <div id="notificationsContent" class="hidden max-h-80 overflow-y-auto divide-y divide-gray-100"></div>
+      </div>
+    </div>
 
     <div class="relative">
       @if(Auth::user()->profile_image)
@@ -213,8 +239,188 @@
         // Do not prevent navigation — we only persist state.
       });
     });
+
+    // Notifications wiring
+    const notifBtn = document.getElementById('notificationBtn');
+    const notifDropdown = document.getElementById('notificationDropdown');
+    const markAllBtn = document.getElementById('markAllReadBtn');
+
+    async function toggleNotificationDropdown(event) {
+      if (!notifDropdown) return;
+      event?.stopPropagation();
+      const isHidden = notifDropdown.classList.contains('hidden');
+      if (isHidden) {
+        notifDropdown.classList.remove('hidden');
+        try {
+          await loadNotifications();
+          // Mark as read when user opens the dropdown
+          await markAllNotificationsAsRead();
+        } catch (e) { /* ignore */ }
+      } else {
+        notifDropdown.classList.add('hidden');
+      }
+    }
+
+    if (notifBtn) {
+      notifBtn.addEventListener('click', toggleNotificationDropdown);
+    }
+    if (markAllBtn) {
+      markAllBtn.addEventListener('click', function(e){ e.stopPropagation(); markAllNotificationsAsRead(); });
+    }
+    document.addEventListener('click', function(event){
+      if (!notifDropdown || !notifBtn) return;
+      if (!notifDropdown.contains(event.target) && !notifBtn.contains(event.target)) {
+        notifDropdown.classList.add('hidden');
+      }
+    });
+
+    // Initial load and periodic refresh
+    loadNotifications();
+    setInterval(loadNotifications, 10000);
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) loadNotifications(); });
   });
 </script>
+<!-- Notifications helpers and modal -->
+<script>
+  let notificationsData = [];
+
+  function loadNotifications() {
+    const loadingEl = document.getElementById('notificationsLoading');
+    const contentEl = document.getElementById('notificationsContent');
+    const noNotificationsEl = document.getElementById('noNotifications');
+    if (loadingEl) loadingEl.classList.remove('hidden');
+    if (contentEl) contentEl.classList.add('hidden');
+    if (noNotificationsEl) noNotificationsEl.classList.add('hidden');
+
+    return fetch('/notifications', {
+      method: 'GET',
+      headers: { 'Accept': 'application/json' },
+      credentials: 'same-origin'
+    }).then(async (response) => {
+      if (!response.ok) throw new Error('HTTP ' + response.status);
+      return response.json();
+    }).then(data => {
+      notificationsData = Array.isArray(data.notifications) ? data.notifications : [];
+      displayNotifications(notificationsData);
+      updateNotificationBadge(Number(data.unread_count || 0));
+    }).catch(err => {
+      console.error('Failed to load notifications', err);
+    }).finally(() => {
+      if (loadingEl) loadingEl.classList.add('hidden');
+    });
+  }
+
+  function displayNotifications(notifications) {
+    const contentEl = document.getElementById('notificationsContent');
+    const noNotificationsEl = document.getElementById('noNotifications');
+    if (!contentEl || !noNotificationsEl) return;
+
+    if (!notifications || notifications.length === 0) {
+      contentEl.classList.add('hidden');
+      noNotificationsEl.classList.remove('hidden');
+      contentEl.innerHTML = '';
+      return;
+    }
+
+    noNotificationsEl.classList.add('hidden');
+    contentEl.classList.remove('hidden');
+    contentEl.innerHTML = notifications.map(n => `
+      <button class="w-full text-left px-4 py-3 hover:bg-gray-50 ${n.is_read ? '' : 'bg-blue-50'}" onclick="markAsRead('${n.id}')">
+        <div class="flex items-start gap-3">
+          <div class="shrink-0 flex items-center justify-center h-7 w-7 rounded-full bg-blue-600 text-white">
+            ${getNotificationIcon(n.type)}
+          </div>
+          <div class="min-w-0">
+            <p class="text-sm text-gray-900 font-medium line-clamp-1">${escapeHtml(n.title ?? 'Notification')}</p>
+            <p class="text-xs text-gray-600 mt-0.5 line-clamp-2">${escapeHtml(n.message ?? '')}</p>
+            <p class="text-[11px] text-gray-500 mt-1">🕐 ${formatDate(n.created_at)}</p>
+          </div>
+        </div>
+      </button>
+    `).join('');
+  }
+
+  function getNotificationIcon(type) {
+    switch(type) {
+      case 'new_registration': return '<i class="fas fa-user-plus text-white text-sm"></i>';
+      case 'security_alert': return '<i class="fas fa-shield-alt text-white text-sm"></i>';
+      case 'system_alert': return '<i class="fas fa-exclamation-triangle text-white text-sm"></i>';
+      default: return '<i class="fas fa-bell text-white text-sm"></i>';
+    }
+  }
+
+  function updateNotificationBadge(unreadCount) {
+    const badge = document.getElementById('notificationBadge');
+    if (!badge) return;
+    if (unreadCount > 0) {
+      badge.textContent = unreadCount > 9 ? '9+' : unreadCount;
+      badge.classList.remove('hidden');
+      badge.classList.add('flex');
+    } else {
+      badge.classList.add('hidden');
+      badge.classList.remove('flex');
+    }
+  }
+
+  function markAsRead(notificationId) {
+    fetch(`/notifications/mark/${notificationId}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
+      },
+      credentials: 'same-origin'
+    }).then(async (response) => {
+      if (!response.ok) throw new Error('HTTP ' + response.status);
+      return response.json();
+    }).then(data => {
+      notificationsData = notificationsData.map(n => n.id == notificationId ? { ...n, is_read: true } : n);
+      displayNotifications(notificationsData);
+      updateNotificationBadge(Number(data.unread_count ?? notificationsData.filter(n => !n.is_read).length));
+    }).catch(err => console.error('Failed to mark as read', err));
+  }
+
+  function markAllNotificationsAsRead() {
+    const unreadIds = notificationsData.filter(n => !n.is_read).map(n => n.id);
+    if (unreadIds.length === 0) return;
+    const csrf = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+    Promise.all(unreadIds.map(id => fetch(`/notifications/mark/${id}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrf },
+      credentials: 'same-origin'
+    }))).then(() => {
+      notificationsData = notificationsData.map(n => ({ ...n, is_read: true }));
+      displayNotifications(notificationsData);
+      updateNotificationBadge(0);
+    }).catch(err => console.error('Failed to mark all as read', err));
+  }
+
+  function formatDate(dateString) {
+    const d = new Date(dateString);
+    return d.toLocaleString();
+  }
+
+  function escapeHtml(text) {
+    if (text == null) return '';
+    return String(text)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/\"/g, '&quot;')
+      .replace(/'/g, '&#039;');
+  }
+
+  // Future Enhancements (commented out for now):
+  // - Auto-refresh every 1–2 minutes (already refreshing every 10s; adjust as needed for production hosting):
+  //   setInterval(loadNotifications, 60 * 1000); // 1 minute
+  // - Real-time push via Laravel Echo + Pusher/Socket.io:
+  //   window.Echo.private(`notifications.user.${USER_ID}`)
+  //     .listen('NotificationCreated', (e) => { loadNotifications(); });
+  // - Email fallback for important alerts is handled at event/listener level
+</script>
+
+<!-- Notification Dropdown markup lives near the bell button above -->
+
 @stack('scripts')
 </body>
 </html>

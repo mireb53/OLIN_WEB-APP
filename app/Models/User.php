@@ -126,4 +126,9 @@ class User extends Authenticatable implements MustVerifyEmail
         }
         return $query;
     }
+
+    public function notifications()
+    {
+        return $this->hasMany(\App\Models\Notification::class);
+    }
 }

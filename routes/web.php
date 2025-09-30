@@ -22,6 +22,7 @@ use Illuminate\Foundation\Auth\EmailVerificationRequest;
 use Illuminate\Http\Request;
 use App\Http\Controllers\Auth\VerificationController; // NEW: Import the new controller
 use App\Http\Controllers\Admin\SettingsController;
+use App\Http\Controllers\Admin\NotificationController as AdminUINotificationController;
 use App\Http\Controllers\Admin\AdminReportsController;
 
 Route::get('/', function () {
@@ -212,6 +213,10 @@ Route::middleware(['auth:web', 'role:super_admin,school_admin', 'verified'])->gr
     Route::get('/admin/notifications', [AdminNotificationController::class, 'index'])->name('admin.notifications');
     Route::post('/admin/notifications/{id}/mark-as-read', [AdminNotificationController::class, 'markAsRead'])->name('admin.notifications.markAsRead');
     Route::post('/admin/notifications/mark-all-as-read', [AdminNotificationController::class, 'markAllAsRead'])->name('admin.notifications.markAllAsRead');
+    // UI-friendly Notifications (per plan)
+    Route::get('/notifications', [AdminUINotificationController::class, 'index'])->name('notifications.index');
+    Route::get('/notifications/all', [AdminUINotificationController::class, 'all'])->name('notifications.all');
+    Route::post('/notifications/mark/{id}', [AdminUINotificationController::class, 'markAsRead'])->name('notifications.mark');
     
 });
 
