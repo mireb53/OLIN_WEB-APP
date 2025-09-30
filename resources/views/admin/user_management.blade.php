@@ -106,9 +106,25 @@
                             <tr class="hover:bg-gray-50">
                                 {{-- Name + Avatar + Online Indicator --}}
                                 <td class="px-4 py-3 flex items-center space-x-3">
-                                    <div class="w-8 h-8 flex items-center justify-center rounded-full text-white font-bold
-                                        {{ $loop->index % 4 == 0 ? 'bg-red-400' : ($loop->index % 4 == 1 ? 'bg-teal-400' : ($loop->index % 4 == 2 ? 'bg-green-400' : 'bg-orange-400')) }}">
-                                        {{ strtoupper(substr($user->name, 0, 1)) }}
+                                    <div class="w-8 h-8 relative">
+                                        @php
+                                            $fallbackBg = $loop->index % 4 == 0 ? 'bg-red-400' : ($loop->index % 4 == 1 ? 'bg-teal-400' : ($loop->index % 4 == 2 ? 'bg-green-400' : 'bg-orange-400'));
+                                        @endphp
+                                        @if(!empty($user->profile_image))
+                                            <img
+                                                src="{{ route('media.profile', ['filename' => basename($user->profile_image)]) }}"
+                                                alt="{{ $user->name }} profile"
+                                                class="w-8 h-8 rounded-full object-cover"
+                                                onerror="this.style.display='none'; const f=this.nextElementSibling; if(f){ f.style.display='flex'; }"
+                                            >
+                                            <div class="absolute inset-0 rounded-full text-white font-bold items-center justify-center {{ $fallbackBg }}" style="display:none;">
+                                                <div class="w-full h-full flex items-center justify-center">{{ strtoupper(substr($user->name, 0, 1)) }}</div>
+                                            </div>
+                                        @else
+                                            <div class="w-8 h-8 rounded-full text-white font-bold flex items-center justify-center {{ $fallbackBg }}">
+                                                {{ strtoupper(substr($user->name, 0, 1)) }}
+                                            </div>
+                                        @endif
                                     </div>
                                     <div class="flex items-center space-x-2">
                                         <span class="font-medium text-gray-800">{{ $user->name }}</span>
@@ -158,6 +174,7 @@
 
                                 {{-- Actions (Edit, Reset Password, Delete ONLY) --}}
                                 <td class="px-4 py-3 text-center space-x-2">
+                                    @can('update', $user)
                                     <button 
                                         type="button"
                                         class="px-3 py-1 text-sm bg-indigo-100 text-indigo-600 rounded hover:bg-indigo-200 edit-user-btn"
@@ -169,22 +186,29 @@
                                     >
                                         Edit
                                     </button>
+                                    @endcan
+                                    @can('resetPassword', $user)
                                     <button 
                                         type="button"
                                         data-modal-target="resetPasswordModal"
                                         data-user-id="{{ $user->id }}"
+                                        data-user-email="{{ $user->email }}"
                                         class="px-3 py-1 text-sm bg-yellow-100 text-yellow-600 rounded hover:bg-yellow-200 reset-password-btn"
                                     >
                                         Reset Password
                                     </button>
+                                    @endcan
+                                    @can('delete', $user)
                                     <button 
                                         type="button"
                                         data-modal-target="deleteUserModal"
                                         data-user-id="{{ $user->id }}"
+                                        data-user-email="{{ $user->email }}"
                                         class="px-3 py-1 text-sm bg-red-100 text-red-600 rounded hover:bg-red-200 delete-user-btn"
                                     >
                                         Delete
                                     </button>
+                                    @endcan
                                 </td>
                             </tr>
                         @endforeach
@@ -266,9 +290,12 @@ document.addEventListener('DOMContentLoaded', function () {
         button.addEventListener('click', (e) => {
             e.preventDefault();
             const userId = button.dataset.userId;
+            const userEmail = button.dataset.userEmail;
             const modal = document.getElementById('deleteUserModal');
             const form = document.getElementById('deleteUserForm');
             form.action = `/admin/users/${userId}`;
+            const confirmInput = document.getElementById('deleteConfirmInput');
+            if (confirmInput) confirmInput.placeholder = `Type DELETE or ${userEmail}`;
             modal.classList.remove('hidden');
         });
     });

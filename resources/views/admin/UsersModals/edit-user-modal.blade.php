@@ -5,6 +5,7 @@
         <form id="editUserForm" method="POST">
             @csrf
             @method('PUT')
+            <p class="text-xs text-gray-500 mb-3">For security, please confirm your admin password to apply changes.</p>
             <div class="mb-4">
                 <label class="block text-sm font-medium text-gray-700">Name</label>
                 <input type="text" name="name" id="editUserName" class="border border-gray-300 rounded-lg px-3 py-2 w-full">
@@ -29,6 +30,10 @@
                     <option value="inactive">Inactive</option>
                     <option value="suspended">Suspended</option>
                 </select>
+            </div>
+            <div class="mb-4">
+                <label class="block text-sm font-medium text-gray-700">Your Admin Password</label>
+                <input type="password" name="admin_password" id="editAdminPassword" class="border border-gray-300 rounded-lg px-3 py-2 w-full" required>
             </div>
             @if(auth()->user()->isSuperAdmin())
             <div class="mb-4">

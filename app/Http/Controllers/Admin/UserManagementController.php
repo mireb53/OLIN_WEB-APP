@@ -241,8 +241,15 @@ class UserManagementController extends Controller
             'program_id' => 'nullable|exists:programs,id',
             'section_id' => 'nullable|exists:sections,id',
             'status' => 'required|in:active,inactive,suspended',
-            'school_id' => 'nullable|exists:schools,id'
+            'school_id' => 'nullable|exists:schools,id',
+            // Require admin password confirmation for sensitive action
+            'admin_password' => 'required|string'
         ]);
+
+        // Verify admin password
+        if (!$actor || !Hash::check($request->input('admin_password'), $actor->getAuthPassword())) {
+            return redirect()->back()->withInput()->with('error', 'Admin password verification failed.');
+        }
 
         // NEW: Role assignment validation
         if ($request->role === User::ROLE_SUPER_ADMIN && !$actor->isSuperAdmin()) {
@@ -296,7 +303,15 @@ class UserManagementController extends Controller
 
         $request->validate([
             'password' => 'required|string|min:8|confirmed',
+            'admin_password' => 'required|string',
         ]);
+
+        // Verify admin password
+        $actor = Auth::user();
+        if (!$actor || !Hash::check($request->input('admin_password'), $actor->getAuthPassword())) {
+            return redirect()->route('admin.user_management')
+                ->with('error', 'Admin password verification failed.');
+        }
 
         $user->update([
             'password' => Hash::make($request->password),
@@ -423,6 +438,25 @@ class UserManagementController extends Controller
         if ($user->id === Auth::id()) {
             return redirect()->route('admin.users.index')
                 ->with('error', 'You cannot delete your own account.');
+        }
+
+        request()->validate([
+            // Require typed confirmation (either the literal word DELETE or the user's email)
+            'confirm' => 'required|string',
+            'admin_password' => 'required|string',
+        ]);
+
+        // Verify admin password
+        $actor = Auth::user();
+        if (!$actor || !Hash::check(request('admin_password'), $actor->getAuthPassword())) {
+            return redirect()->route('admin.users.index')
+                ->with('error', 'Admin password verification failed.');
+        }
+
+        $confirm = trim((string) request('confirm'));
+        if (!($confirm === 'DELETE' || strcasecmp($confirm, $user->email) === 0)) {
+            return redirect()->route('admin.users.index')
+                ->with('error', 'Deletion not confirmed. Type DELETE or the user\'s exact email to confirm.');
         }
 
         // Check if the user is an instructor with courses
