@@ -14,6 +14,7 @@ class Course extends Model
         'course_code',
         'description',
         'credits',
+        'department',
         'program_id',
         'instructor_id',
         'status',

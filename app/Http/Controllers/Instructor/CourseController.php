@@ -28,10 +28,12 @@ class CourseController extends Controller
             'course_code' => 'required|string|max:50|unique:courses,course_code',
             'description' => 'nullable|string',
             'credits' => 'nullable|integer|min:1',
+            'department' => 'required|string|max:10',
             'program_name' => 'required|string|max:255',
             'status' => 'required|in:draft,published,archived',
         ]);
 
+        // Extract only the acronym from program_name (in case full name is sent)
         $programName = Str::upper($request->program_name);
 
         $program = Program::firstOrCreate(
@@ -45,6 +47,7 @@ class CourseController extends Controller
             'course_code' => $request->course_code,
             'description' => $request->description,
             'credits' => $request->credits,
+            'department' => $request->department, // Save department acronym
             'program_id' => $programId,
             'instructor_id' => Auth::id(),
             'status' => $request->status,
@@ -75,10 +78,12 @@ class CourseController extends Controller
             'course_code' => 'required|string|max:50|unique:courses,course_code,' . $course->id,
             'description' => 'nullable|string',
             'credits' => 'nullable|integer|min:1',
+            'department' => 'required|string|max:10',
             'program_name' => 'required|string|max:255',
             'status' => 'required|in:draft,published,archived',
         ]);
 
+        // Extract only the acronym from program_name (in case full name is sent)
         $programName = Str::upper($request->program_name);
 
         $program = Program::firstOrCreate(
@@ -90,6 +95,7 @@ class CourseController extends Controller
             'course_code' => $request->course_code,
             'description' => $request->description,
             'credits' => $request->credits,
+            'department' => $request->department, // Save department acronym
             'program_id' => $program->id,
             'status' => $request->status,
         ]);

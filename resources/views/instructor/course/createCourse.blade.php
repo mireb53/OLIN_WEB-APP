@@ -67,12 +67,28 @@
                         </select>
                     </div>
 
+                    {{-- Department --}}
+                    <div>
+                        <label for="department" class="block text-sm font-medium text-gray-700 mb-2">Department</label>
+                        <select id="department" name="department" 
+                                class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500" required>
+                            <option value="">Select Department</option>
+                            <option value="CCS" {{ old('department') == 'CCS' ? 'selected' : '' }}>CCS - College of Computer Studies</option>
+                            <option value="CHS" {{ old('department') == 'CHS' ? 'selected' : '' }}>CHS - College of Health Sciences</option>
+                            <option value="CAS" {{ old('department') == 'CAS' ? 'selected' : '' }}>CAS - College of Arts and Sciences</option>
+                            <option value="CEA" {{ old('department') == 'CEA' ? 'selected' : '' }}>CEA - College of Engineering and Architecture</option>
+                            <option value="CTHBM" {{ old('department') == 'CTHBM' ? 'selected' : '' }}>CTHBM - College of Tourism, Hospitality and Business Management</option>
+                            <option value="CTDE" {{ old('department') == 'CTDE' ? 'selected' : '' }}>CTDE - College of Teacher Development and Education</option>
+                        </select>
+                    </div>
+
                     {{-- Program Name --}}
                     <div>
-                        <label for="program_name" class="block text-sm font-medium text-gray-700 mb-2">Program Name</label>
-                        <input type="text" id="program_name" name="program_name" value="{{ old('program_name') }}" 
-                               class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500" 
-                               placeholder="Computer Science" required>
+                        <label for="program_name" class="block text-sm font-medium text-gray-700 mb-2">Program</label>
+                        <select id="program_name" name="program_name" 
+                                class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500" required disabled>
+                            <option value="">Select Program</option>
+                        </select>
                     </div>
 
                     {{-- Credits --}}
@@ -103,6 +119,87 @@
     </div>
 
     <script>
+        // Department to Programs mapping with full names
+        const DEPT_PROGRAMS = {
+            'CCS': [
+                {code: 'BSIT', name: 'Bachelor of Science in Information Technology'},
+                {code: 'BSCS', name: 'Bachelor of Science in Computer Science'},
+                {code: 'BSIS', name: 'Bachelor of Science in Information Systems'},
+                {code: 'BLIS', name: 'Bachelor of Library and Information Science'}
+            ],
+            'CHS': [
+                {code: 'BSN', name: 'Bachelor of Science in Nursing'},
+                {code: 'BSM', name: 'Bachelor of Science in Midwifery'}
+            ],
+            'CAS': [
+                {code: 'BAELS', name: 'Bachelor of Arts in English Language Studies'},
+                {code: 'BS Math', name: 'Bachelor of Science in Mathematics'},
+                {code: 'BS Applied Math', name: 'Bachelor of Science in Applied Mathematics'},
+                {code: 'BS DevCo', name: 'Bachelor of Science in Development Communication'},
+                {code: 'BSPA', name: 'Bachelor of Science in Public Administration'},
+                {code: 'BAHS', name: 'Bachelor of Arts in History Studies'}
+            ],
+            'CEA': [
+                {code: 'BSCE', name: 'Bachelor of Science in Civil Engineering'},
+                {code: 'BSME', name: 'Bachelor of Science in Mechanical Engineering'},
+                {code: 'BSEE', name: 'Bachelor of Science in Electrical Engineering'},
+                {code: 'BSECE', name: 'Bachelor of Science in Electronics and Communications Engineering'}
+            ],
+            'CTHBM': [
+                {code: 'BSOA', name: 'Bachelor of Science in Office Administration'},
+                {code: 'BSTM', name: 'Bachelor of Science in Tourism Management'},
+                {code: 'BSHM', name: 'Bachelor of Science in Hotel Management'},
+                {code: 'BSEM', name: 'Bachelor of Science in Entrepreneurial Management'}
+            ],
+            'CTDE': [
+                {code: 'BPEd', name: 'Bachelor of Physical Education'},
+                {code: 'BCAEd', name: 'Bachelor of Culture and Arts Education'},
+                {code: 'BSNEd', name: 'Bachelor of Special Needs Education'},
+                {code: 'BTVTEd', name: 'Bachelor of Technical-Vocational Teacher Education'}
+            ]
+        };
+
+        // Handle department change
+        document.getElementById('department').addEventListener('change', function() {
+            const selectedDepartment = this.value;
+            const programSelect = document.getElementById('program_name');
+            
+            // Clear existing options
+            programSelect.innerHTML = '<option value="">Select Program</option>';
+            
+            if (selectedDepartment && DEPT_PROGRAMS[selectedDepartment]) {
+                // Enable program select
+                programSelect.disabled = false;
+                
+                // Add programs for selected department
+                DEPT_PROGRAMS[selectedDepartment].forEach(function(program) {
+                    const option = document.createElement('option');
+                    option.value = program.code; // Store only the acronym as value
+                    option.textContent = `${program.code} - ${program.name}`; // Display both acronym and full name
+                    
+                    // Check if this was the previously selected value (for old input)
+                    if (program.code === '{{ old('program_name') }}') {
+                        option.selected = true;
+                    }
+                    
+                    programSelect.appendChild(option);
+                });
+            } else {
+                // Disable program select if no department selected
+                programSelect.disabled = true;
+            }
+        });
+
+        // Initialize program dropdown if department is already selected (for old input)
+        document.addEventListener('DOMContentLoaded', function() {
+            const departmentSelect = document.getElementById('department');
+            if (departmentSelect.value) {
+                // Trigger change event to populate programs
+                departmentSelect.dispatchEvent(new Event('change'));
+            }
+        });
+
+        // Form submission handling
         document.getElementById('createCourseForm').addEventListener('submit', function() {
             const submitButton = document.getElementById('submitCourseButton');
             submitButton.setAttribute('disabled', 'disabled');

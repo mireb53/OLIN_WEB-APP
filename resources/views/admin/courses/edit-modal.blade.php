@@ -33,9 +33,9 @@
                     <label class="block font-semibold mb-2 text-cyan-300">Course Name</label>
                     <input type="text" id="modalEditTitle" name="title" class="w-full px-4 py-2 rounded-lg bg-gray-800 border border-gray-600 text-gray-100 focus:outline-none focus:ring-2 focus:ring-cyan-500 transition" required>
                 </div>
-                <!-- Course Code -->
+                <!-- Enrollment Key -->
                 <div>
-                    <label class="block font-semibold mb-2 text-cyan-300">Course Code</label>
+                    <label class="block font-semibold mb-2 text-cyan-300">Enrollment Key</label>
                     <input type="text" id="modalEditCode" name="course_code" class="w-full px-4 py-2 rounded-lg bg-gray-800 border border-gray-600 text-gray-100 focus:outline-none focus:ring-2 focus:ring-cyan-500 transition" placeholder="e.g. CS101" required>
                 </div>
                 <!-- Status -->
@@ -47,10 +47,30 @@
                         <option value="archived">Archived</option>
                     </select>
                 </div>
+                <!-- Department -->
+                <div>
+                    <label class="block font-semibold mb-2 text-cyan-300">Department</label>
+                    <select id="modalEditDepartment" name="department" class="w-full px-4 py-2 rounded-lg bg-gray-800 border border-gray-600 text-gray-100 focus:outline-none focus:ring-2 focus:ring-cyan-500 transition" required>
+                        <option value="">-- Select Department --</option>
+                        <option value="CCS">CCS - College of Computer Studies</option>
+                        <option value="CHS">CHS - College of Health Sciences</option>
+                        <option value="CAS">CAS - College of Arts and Sciences</option>
+                        <option value="CEA">CEA - College of Engineering and Architecture</option>
+                        <option value="CTHBM">CTHBM - College of Tourism, Hospitality and Business Management</option>
+                        <option value="CTDE">CTDE - College of Teacher Development and Education</option>
+                    </select>
+                </div>
                 <!-- Program -->
                 <div>
                     <label class="block font-semibold mb-2 text-cyan-300">Program</label>
-                    <select id="modalEditProgram" name="program_id" class="w-full px-4 py-2 rounded-lg bg-gray-800 border border-gray-600 text-gray-100 focus:outline-none focus:ring-2 focus:ring-cyan-500 transition"></select>
+                    <select id="modalEditProgram" name="program_name" class="w-full px-4 py-2 rounded-lg bg-gray-800 border border-gray-600 text-gray-100 focus:outline-none focus:ring-2 focus:ring-cyan-500 transition">
+                        <option value="">-- Select Program --</option>
+                    </select>
+                </div>
+                <!-- Credits -->
+                <div>
+                    <label class="block font-semibold mb-2 text-cyan-300">Credits</label>
+                    <input type="number" step="0.5" id="modalEditCredits" name="credits" class="w-full px-4 py-2 rounded-lg bg-gray-800 border border-gray-600 text-gray-100 focus:outline-none focus:ring-2 focus:ring-cyan-500 transition" placeholder="e.g. 3">
                 </div>
             </div>
 
@@ -58,12 +78,6 @@
             <div>
                 <label class="block font-semibold mb-2 text-cyan-300">Description</label>
                 <textarea id="modalEditDescription" name="description" rows="4" class="w-full px-4 py-2 rounded-lg bg-gray-800 border border-gray-600 text-gray-100 focus:outline-none focus:ring-2 focus:ring-cyan-500 transition" placeholder="Optional course description..."></textarea>
-            </div>
-
-            <!-- Credits -->
-            <div class="md:w-1/3">
-                <label class="block font-semibold mb-2 text-cyan-300">Credits</label>
-                <input type="number" step="0.5" id="modalEditCredits" name="credits" class="w-full px-4 py-2 rounded-lg bg-gray-800 border border-gray-600 text-gray-100 focus:outline-none focus:ring-2 focus:ring-cyan-500 transition" placeholder="e.g. 3">
             </div>
 
             <!-- 2FA Step 1 -->
@@ -87,21 +101,112 @@
 </div>
 
 <script>
+    // Department to Programs mapping with full names
+    const EDIT_DEPT_PROGRAMS = {
+        'CCS': [
+            {code: 'BSIT', name: 'Bachelor of Science in Information Technology'},
+            {code: 'BSCS', name: 'Bachelor of Science in Computer Science'},
+            {code: 'BSIS', name: 'Bachelor of Science in Information Systems'},
+            {code: 'BLIS', name: 'Bachelor of Library and Information Science'}
+        ],
+        'CHS': [
+            {code: 'BSN', name: 'Bachelor of Science in Nursing'},
+            {code: 'BSM', name: 'Bachelor of Science in Midwifery'}
+        ],
+        'CAS': [
+            {code: 'BAELS', name: 'Bachelor of Arts in English Language Studies'},
+            {code: 'BS Math', name: 'Bachelor of Science in Mathematics'},
+            {code: 'BS Applied Math', name: 'Bachelor of Science in Applied Mathematics'},
+            {code: 'BS DevCo', name: 'Bachelor of Science in Development Communication'},
+            {code: 'BSPA', name: 'Bachelor of Science in Public Administration'},
+            {code: 'BAHS', name: 'Bachelor of Arts in History Studies'}
+        ],
+        'CEA': [
+            {code: 'BSCE', name: 'Bachelor of Science in Civil Engineering'},
+            {code: 'BSME', name: 'Bachelor of Science in Mechanical Engineering'},
+            {code: 'BSEE', name: 'Bachelor of Science in Electrical Engineering'},
+            {code: 'BSECE', name: 'Bachelor of Science in Electronics and Communications Engineering'}
+        ],
+        'CTHBM': [
+            {code: 'BSOA', name: 'Bachelor of Science in Office Administration'},
+            {code: 'BSTM', name: 'Bachelor of Science in Tourism Management'},
+            {code: 'BSHM', name: 'Bachelor of Science in Hotel Management'},
+            {code: 'BSEM', name: 'Bachelor of Science in Entrepreneurial Management'}
+        ],
+        'CTDE': [
+            {code: 'BPEd', name: 'Bachelor of Physical Education'},
+            {code: 'BCAEd', name: 'Bachelor of Culture and Arts Education'},
+            {code: 'BSNEd', name: 'Bachelor of Special Needs Education'},
+            {code: 'BTVTEd', name: 'Bachelor of Technical-Vocational Teacher Education'}
+        ]
+    };
+
     const modal = document.getElementById("modalContainer");
     const toggleBtn = document.getElementById("toggleModeBtn");
     let darkMode = false;
-    // Populate program select options from a global JS variable if present (injected on page load)
-    if(window.__ADMIN_PROGRAMS__ && Array.isArray(window.__ADMIN_PROGRAMS__)){
-        const progSel = document.getElementById('modalEditProgram');
-        progSel.innerHTML = '<option value="">-- Select Program --</option>' + window.__ADMIN_PROGRAMS__.map(p=>`<option value="${p.id}">${p.name}</option>`).join('');
+    
+    // Function to populate programs based on department
+    function populateProgramsByDepartment(department, selectedProgram = null) {
+        const programSelect = document.getElementById('modalEditProgram');
+        
+        // Clear existing options
+        programSelect.innerHTML = '<option value="">-- Select Program --</option>';
+        
+        if (department && EDIT_DEPT_PROGRAMS[department]) {
+            // Add programs for selected department
+            EDIT_DEPT_PROGRAMS[department].forEach(function(program) {
+                const option = document.createElement('option');
+                option.value = program.code; // Use program code for consistency
+                option.textContent = `${program.code} - ${program.name}`; // Display both acronym and full name
+                
+                // Set as selected if this matches the current program
+                if (selectedProgram && selectedProgram === program.code) {
+                    option.selected = true;
+                }
+                
+                programSelect.appendChild(option);
+            });
+        }
     }
-
+    
+    // Handle department change
+    document.getElementById('modalEditDepartment').addEventListener('change', function() {
+        const selectedDepartment = this.value;
+        populateProgramsByDepartment(selectedDepartment);
+    });
+    
+    // Function to set edit modal values (to be called from parent page)
+    window.setEditModalValues = function(course) {
+        // Set basic fields
+        document.getElementById('modalEditTitle').value = course.title || '';
+        document.getElementById('modalEditCode').value = course.course_code || '';
+        document.getElementById('modalEditStatus').value = course.status || '';
+        document.getElementById('modalEditDescription').value = course.description || '';
+        document.getElementById('modalEditCredits').value = course.credits || '';
+        
+        // Set department
+        document.getElementById('modalEditDepartment').value = course.department || '';
+        
+        // Populate programs based on department and set selected program
+        if (course.department) {
+            // Get the program name from the relationship or fallback to program field
+            let programName = null;
+            if (course.program && course.program.name) {
+                programName = course.program.name;
+            } else if (course.program_name) {
+                programName = course.program_name;
+            }
+            
+            populateProgramsByDepartment(course.department, programName);
+        }
+    };
+    
     toggleBtn.addEventListener("click", () => {
         darkMode = !darkMode;
         if (darkMode) {
             modal.classList.remove('bg-gradient-to-br','from-gray-900','via-gray-800','to-black','text-gray-100');
             modal.classList.add('cyber-light','bg-white','text-gray-800');
-            toggleBtn.textContent = '☀️';
+            toggleBtn.textContent = '🔆';
         } else {
             modal.classList.remove('cyber-light','bg-white','text-gray-800');
             modal.classList.add('bg-gradient-to-br','from-gray-900','via-gray-800','to-black','text-gray-100');

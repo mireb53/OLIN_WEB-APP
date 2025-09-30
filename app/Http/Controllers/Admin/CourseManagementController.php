@@ -49,15 +49,31 @@ class CourseManagementController extends Controller
             $query->where('status', $statusFilter);
         }
 
-        // filter by instructor department
+        // filter by course department
         $departmentFilter = request()->input('department');
         if ($departmentFilter && in_array($departmentFilter, $departmentsList, true)) {
-            $query->whereHas('instructor', function($dq) use ($departmentFilter) {
-                $dq->where('department', $departmentFilter);
-            });
+            $query->where('department', $departmentFilter);
         }
 
     $courses = $query->orderBy('created_at','desc')->paginate(10)->withQueryString();
+
+        // Handle AJAX requests for filtering
+        if (request()->ajax() || request()->wantsJson()) {
+            $html = '';
+            if ($courses->count() > 0) {
+                foreach ($courses as $course) {
+                    $html .= view('admin.courses.partials.course-row', compact('course'))->render();
+                }
+            } else {
+                $html = '<tr><td colspan="6" class="px-6 py-8 text-center text-gray-500">No courses found matching your criteria.</td></tr>';
+            }
+            return response()->json([
+                'success' => true,
+                'html' => $html,
+                'pagination' => method_exists($courses, 'links') ? $courses->links()->render() : '',
+                'total' => $courses->total()
+            ]);
+        }
 
         // load all programs for the create modal program select
         $programs = Program::orderBy('name')->get();
@@ -83,7 +99,7 @@ class CourseManagementController extends Controller
      */
     public function findInstructor(Request $request)
     {
-        $request->validate(['email' => 'required|email']);
+    $request->validate(['email' => 'required|email']);
         $email = $request->input('email');
         $user = User::where('email', $email)->where('role', 'instructor')->first();
         if (!$user) {
@@ -97,23 +113,36 @@ class CourseManagementController extends Controller
      */
     public function store(Request $request)
     {
-          $validated = $request->validate([
-        'title' => 'required|string|max:255',
-        'course_code' => 'required|string|max:50|unique:courses,course_code',
-        'status' => 'required|in:published,draft,archived',
-        'program_id' => 'required|exists:programs,id',
-        'description' => 'nullable|string',
-        'credits' => 'nullable|numeric|min:0',
-        'instructor_id' => 'required|exists:users,id',
-    ]);
+        $validated = $request->validate([
+            'title' => 'required|string|max:255',
+            'course_code' => 'required|string|max:50|unique:courses,course_code',
+            'status' => 'required|in:published,draft,archived',
+            'program_name' => 'required|string|max:50',
+            'department' => 'required|string|max:10',
+            'description' => 'nullable|string',
+            'credits' => 'nullable|numeric|min:0',
+            'instructor_id' => 'required|exists:users,id',
+        ]);
 
-        $course = Course::create($validated);
+        // Find or create program by name (acronym)
+        $program = Program::firstOrCreate(['name' => $validated['program_name']]);
+
+        $course = Course::create([
+            'title' => $validated['title'],
+            'course_code' => $validated['course_code'],
+            'status' => $validated['status'],
+            'program_id' => $program->id,
+            'department' => $validated['department'],
+            'instructor_id' => $validated['instructor_id'],
+            'description' => $validated['description'] ?? null,
+            'credits' => $validated['credits'] ?? null,
+        ]);
+
         // load relations for client-side append
         $course->load('instructor','program');
 
         return response()->json([
             'success' => true,
-            'message' => 'Course created successfully',
             'course' => $course
         ]);
     }
@@ -164,7 +193,7 @@ class CourseManagementController extends Controller
 
     public function edit($courseId)
     {
-        $course = Course::with('instructor')->findOrFail($courseId);
+    $course = Course::with(['instructor','program'])->findOrFail($courseId);
         // Return JSON for modal edit; redirect to management if accessed directly
         if (request()->wantsJson() || request()->ajax()) {
             return response()->json(['success' => true, 'course' => $course]);
@@ -177,23 +206,30 @@ class CourseManagementController extends Controller
         $course = Course::findOrFail($courseId);
         $validated = $request->validate([
             'title' => 'required|string|max:255',
-            // Make course_code optional on edit; only validate uniqueness when provided
-            'course_code' => 'nullable|string|max:50|unique:courses,course_code,' . $course->id,
+            'course_code' => 'required|string|max:50|unique:courses,course_code,' . $course->id,
             'status' => 'required|in:published,draft,archived',
-            'program_id' => 'nullable|exists:programs,id',
+            'program_name' => 'nullable|string|max:50',
+            'department' => 'required|string|max:10',
             'description' => 'nullable|string',
             'credits' => 'nullable|numeric|min:0'
         ]);
 
-        // Preserve existing course_code if not provided (avoid nulling it out)
-        if (!array_key_exists('course_code', $validated) || $validated['course_code'] === null || $validated['course_code'] === '') {
-            unset($validated['course_code']);
+        // Handle program creation/finding like in store method
+        if (!empty($validated['program_name'])) {
+            $program = Program::firstOrCreate(['name' => $validated['program_name']]);
+            $validated['program_id'] = $program->id;
+        } else {
+            $validated['program_id'] = null;
         }
+
+        // Do not persist program_name string column
+        unset($validated['program_name']);
+
         $course->fill($validated);
         $course->save();
 
         if ($request->wantsJson() || $request->ajax()) {
-            return response()->json(['success' => true, 'course' => $course->fresh('program')]);
+            return response()->json(['success' => true, 'course' => $course->fresh(['program','instructor'])]);
         }
         return redirect()->route('admin.courseManagement')->with('success', 'Course updated successfully.');
     }
