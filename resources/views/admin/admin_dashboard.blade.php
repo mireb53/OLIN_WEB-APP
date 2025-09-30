@@ -178,7 +178,8 @@
             <div class="flex items-center space-x-4">
                 <div class="text-right">
                     <p class="text-sm text-gray-500">Current Time</p>
-                    <p class="text-lg font-semibold text-gray-900">{{ now()->format('M d, Y - g:i A') }}</p>
+                    <p class="text-lg font-semibold text-gray-900">{{ now()->setTimezone(config('app.timezone'))->format('M d, Y - g:i A') }}</p>
+                    <p class="text-xs text-gray-400">{{ config('app.timezone') }}</p>
                 </div>
 
                 @php $user = Auth::user(); @endphp
@@ -867,9 +868,9 @@ document.getElementById('quickAddUserForm').addEventListener('submit', function(
         },
         body: formData
     })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success || response.ok) {
+    .then(async response => {
+        const data = await response.json().catch(() => ({}));
+        if (response.ok || data.success) {
             showSuccessToast('User created successfully!');
             closeQuickAddUserModal();
             // Optionally refresh page or update UI
@@ -902,9 +903,9 @@ document.getElementById('quickAddCourseForm').addEventListener('submit', functio
         },
         body: formData
     })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success || response.ok) {
+    .then(async response => {
+        const data = await response.json().catch(() => ({}));
+        if (response.ok || data.success) {
             showSuccessToast('Course created successfully!');
             closeQuickAddCourseModal();
             // Optionally refresh page or update UI
@@ -931,9 +932,9 @@ document.getElementById('announcementForm').addEventListener('submit', function(
         },
         body: formData
     })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success || response.ok) {
+    .then(async response => {
+        const data = await response.json().catch(() => ({}));
+        if (response.ok || data.success) {
             showSuccessToast('Announcement posted successfully!');
             closeAnnouncementModal();
             // Optionally refresh page or update UI

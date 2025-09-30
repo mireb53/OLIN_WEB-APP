@@ -136,6 +136,10 @@ class SettingsController extends Controller
                 $globalSettings = Setting::firstOrCreate(['school_id' => null]);
                 $this->fillGlobalSettings($globalSettings, $validated);
                 $globalSettings->save();
+                // Invalidate cached global timezone so AppServiceProvider picks up new value
+                if (isset($validated['timezone'])) {
+                    \Illuminate\Support\Facades\Cache::forget('settings.global.timezone');
+                }
             }
 
             // Update school information and settings (only if school exists)

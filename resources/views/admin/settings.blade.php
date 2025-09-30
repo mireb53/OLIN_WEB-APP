@@ -158,7 +158,6 @@
         <!-- Settings Form -->
         <form action="{{ route('admin.settings.update') }}" method="POST" class="space-y-8">
             @csrf
-            @method('PUT')
 
             {{-- Section 2: School Information & Settings --}}
             @if($activeSchool || ($authUser && $authUser->isSchoolAdmin()))
@@ -293,7 +292,7 @@
             @endif
 
             {{-- Section 4: File Upload Limits --}}
-            <section class="bg-white rounded-xl p-6 md:p-8 shadow-lg border border-gray-200">
+            <!-- <section class="bg-white rounded-xl p-6 md:p-8 shadow-lg border border-gray-200">
                 <div class="flex items-center mb-6">
                     <div class="w-8 h-8 bg-orange-100 rounded-full flex items-center justify-center mr-4">
                         <span class="text-orange-600 font-semibold">4</span>
@@ -323,7 +322,7 @@
                         <p class="text-xs text-slate-500">Comma-separated list of extensions.</p>
                     </div>
                 </div>
-            </section>
+            </section> -->
 
             {{-- Section 5: Email Templates (Super Admin only) --}}
             @if($authUser && $authUser->isSuperAdmin())
@@ -373,6 +372,7 @@
 
     {{-- JavaScript for Dynamic Behavior --}}
     <script src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
+    <script src="https://unpkg.com/@alpinejs/collapse@3.x.x/dist/cdn.min.js" defer></script>
     <script>
         document.addEventListener('DOMContentLoaded', function() {
             // Handle form submission for create school forms
@@ -450,6 +450,7 @@
             const settingsForm = document.querySelector('form[action="{{ route('admin.settings.update') }}"]');
             if (settingsForm) {
                 const schoolNameInput = document.getElementById('school_name');
+                const saveBtn = settingsForm.querySelector('button[type="submit"]');
                 settingsForm.addEventListener('submit', function(e) {
                     if (!schoolNameInput) return;
 
@@ -468,6 +469,15 @@
                                 e.preventDefault();
                             }
                         }
+                    }
+
+                    // Disable save button and show a light loading state
+                    if (saveBtn) {
+                        saveBtn.disabled = true;
+                        saveBtn.classList.add('opacity-75', 'cursor-not-allowed');
+                        const original = saveBtn.innerHTML;
+                        saveBtn.dataset.originalText = original;
+                        saveBtn.innerHTML = '<span class="inline-flex items-center"><svg class="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>Saving...</span>';
                     }
                 });
             }
