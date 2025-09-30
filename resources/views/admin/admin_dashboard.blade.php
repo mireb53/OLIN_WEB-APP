@@ -153,41 +153,57 @@
     @endpush
     
     <main class="flex-1 overflow-y-auto bg-gray-50 min-h-screen">
-        <!-- Header Section -->
-        <div class="bg-white border-b border-gray-200 px-6 py-8">
-            <div class="max-w-7xl mx-auto">
-                <div class="flex items-center justify-between">
-                    <div>
-                        <h1 class="text-4xl font-bold text-gray-900">Dashboard</h1>
-                        <p class="mt-2 text-lg text-gray-600">Welcome back, <span class="font-semibold text-blue-600">{{ Auth::user()->name }}</span>! Here's your system overview.</p>
-                    </div>
-                    <div class="flex items-center space-x-4">
-                        <div class="text-right">
-                            <p class="text-sm text-gray-500">Current Time</p>
-                            <p class="text-lg font-semibold text-gray-900">{{ now()->format('M d, Y - g:i A') }}</p>
-                        </div>
-                        @php $user = Auth::user(); @endphp
-                        @if((method_exists($user, 'isSuperAdmin') && $user->isSuperAdmin()) || (method_exists($user, 'isSchoolAdmin') && $user->isSchoolAdmin()))
-                            <div class="hidden sm:flex items-center bg-blue-50 border border-blue-200 text-blue-700 rounded-full px-3 py-2" title="Active School Context">
-                                <svg class="w-5 h-5 text-blue-600 mr-2" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
-                                    <path d="M10 2L2 6l8 4 8-4-8-4zm0 6l-6-3v5l6 3 6-3V5l-6 3zm-6 6v2l6 3 6-3v-2l-6 3-6-3z"/>
-                                </svg>
-                                <span class="font-medium">
-                                    @if(isset($activeSchool) && $activeSchool)
-                                        Monitoring: {{ $activeSchool->name }}
-                                    @else
-                                        No school selected
-                                    @endif
-                                </span>
-                                @if(!(isset($activeSchool) && $activeSchool))
-                                    <a href="{{ route('admin.settings') }}" class="ml-3 text-blue-600 hover:text-blue-800 underline text-sm">Manage</a>
-                                @endif
-                            </div>
+       <!-- Header Section -->
+<div class="bg-white border-b border-gray-200 px-6 py-8">
+    <div class="max-w-7xl mx-auto">
+        <div class="flex items-center justify-between">
+            <div>
+                <h1 class="text-4xl font-bold text-gray-900">Dashboard</h1>
+
+                @if (Auth::user()->last_login_at == null)
+                    <p class="mt-2 text-lg text-gray-600">
+                        Welcome aboard, 
+                        <span class="font-semibold text-blue-600">{{ Auth::user()->name }}</span>! 
+                        Let’s get started.
+                    </p>
+                @else
+                    <p class="mt-2 text-lg text-gray-600">
+                        Welcome back, 
+                        <span class="font-semibold text-blue-600">{{ Auth::user()->name }}</span>! 
+                        Here’s your system overview.
+                    </p>
+                @endif
+            </div>
+
+            <div class="flex items-center space-x-4">
+                <div class="text-right">
+                    <p class="text-sm text-gray-500">Current Time</p>
+                    <p class="text-lg font-semibold text-gray-900">{{ now()->format('M d, Y - g:i A') }}</p>
+                </div>
+
+                @php $user = Auth::user(); @endphp
+                @if((method_exists($user, 'isSuperAdmin') && $user->isSuperAdmin()) || (method_exists($user, 'isSchoolAdmin') && $user->isSchoolAdmin()))
+                    <div class="hidden sm:flex items-center bg-blue-50 border border-blue-200 text-blue-700 rounded-full px-3 py-2" title="Active School Context">
+                        <svg class="w-5 h-5 text-blue-600 mr-2" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
+                            <path d="M10 2L2 6l8 4 8-4-8-4zm0 6l-6-3v5l6 3 6-3V5l-6 3zm-6 6v2l6 3 6-3v-2l-6 3-6-3z"/>
+                        </svg>
+                        <span class="font-medium">
+                            @if(isset($activeSchool) && $activeSchool)
+                                Monitoring: {{ $activeSchool->name }}
+                            @else
+                                No school selected
+                            @endif
+                        </span>
+                        @if(!(isset($activeSchool) && $activeSchool))
+                            <a href="{{ route('admin.settings') }}" class="ml-3 text-blue-600 hover:text-blue-800 underline text-sm">Manage</a>
                         @endif
                     </div>
-                </div>
+                @endif
             </div>
         </div>
+    </div>
+</div>
+
 
         <div class="max-w-7xl mx-auto px-6 py-8">
             {{-- Quick Actions Section --}}
