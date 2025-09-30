@@ -12,6 +12,8 @@ use App\Models\Course;
 use App\Models\Assessment;
 use App\Models\SubmittedAssessment;
 use App\Models\School;
+use App\Models\Announcement;
+use App\Models\Program;
 use Carbon\Carbon;
 
 class AdminDashboardController extends Controller
@@ -51,6 +53,8 @@ class AdminDashboardController extends Controller
         $recentActivities = $needsSchoolSelection ? [] : $this->getRecentActivities($activeSchoolId);
         $systemHealth = $this->getSystemHealth();
         $availableSchools = $user->isSuperAdmin() ? School::orderBy('name')->get() : collect();
+        $announcements = $needsSchoolSelection ? collect() : $this->getAnnouncements($activeSchoolId);
+        $programs = Program::orderBy('name')->get();
 
         return view('admin.admin_dashboard', compact(
             'stats', 
@@ -58,7 +62,9 @@ class AdminDashboardController extends Controller
             'systemHealth', 
             'activeSchool',
             'availableSchools',
-            'needsSchoolSelection'
+            'needsSchoolSelection',
+            'announcements',
+            'programs'
         ));
     }
 
@@ -124,6 +130,58 @@ class AdminDashboardController extends Controller
             });
         }
         
+        // Active users (Currently Online) based on sessions.last_activity within last 15 minutes
+        $activeUsersNow = 0;
+        try {
+            $cutoff = Carbon::now()->subMinutes(15)->getTimestamp();
+            if (\Schema::hasTable('sessions')) {
+                $sessionRows = DB::table('sessions')
+                    ->select(['user_id', 'payload', 'last_activity'])
+                    ->where('last_activity', '>=', $cutoff)
+                    ->get();
+
+                $userIds = collect();
+                foreach ($sessionRows as $row) {
+                    if (!is_null($row->user_id)) {
+                        $userIds->push((int) $row->user_id);
+                        continue;
+                    }
+                    // Fallback: try to parse user id from payload (serialized string)
+                    if (!empty($row->payload)) {
+                        $payload = @base64_decode($row->payload, true);
+                        if ($payload === false) { $payload = $row->payload; }
+                        if (preg_match('/"user_id";i:(\d+)/', $payload, $m)) {
+                            $userIds->push((int) $m[1]);
+                        } elseif (preg_match('/"id";i:(\d+)/', $payload, $m2)) {
+                            $userIds->push((int) $m2[1]);
+                        }
+                    }
+                }
+                $userIds = $userIds->unique()->values();
+
+                if ($userIds->isNotEmpty()) {
+                    if ($schoolId) {
+                        $activeUsersNow = User::whereIn('id', $userIds)
+                            ->where('school_id', $schoolId)
+                            ->count();
+                    } else {
+                        $activeUsersNow = $userIds->count();
+                    }
+                }
+            }
+
+            // Fallback if sessions not available or zero: use users.last_activity_at within 15 minutes
+            if ($activeUsersNow === 0 && \Schema::hasColumn('users', 'last_activity_at')) {
+                $activeUsersNow = (clone $userQuery)
+                    ->whereNotNull('last_activity_at')
+                    ->where('last_activity_at', '>=', Carbon::now()->subMinutes(15))
+                    ->count();
+            }
+        } catch (\Throwable $e) {
+            // If anything fails, keep zero (safe default)
+            $activeUsersNow = 0;
+        }
+
         return [
             'total_users' => $userQuery->count(),
             'total_courses' => $courseQuery->count(),
@@ -134,7 +192,12 @@ class AdminDashboardController extends Controller
             'submitted_assessments' => $submissionQuery->count(),
             'recent_registrations' => (clone $userQuery)->where('created_at', '>=', Carbon::now()->subDays(7))->count(),
             'active_users_today' => (clone $userQuery)->where('last_login_at', '>=', Carbon::today())->count(),
+            'active_users_now' => $activeUsersNow,
             'completed_assessments_this_month' => (clone $submissionQuery)->where('created_at', '>=', Carbon::now()->startOfMonth())->count(),
+            // Security & Health metrics
+            'pending_users' => (clone $userQuery)->where('status', 'inactive')->count(),
+            'pending_courses' => (clone $courseQuery)->where('status', 'draft')->count(),
+            'failed_logins_24h' => $this->getFailedLoginsCount(),
         ];
     }
 
@@ -444,5 +507,66 @@ class AdminDashboardController extends Controller
             'labels' => $last7Days->pluck('date'),
             'data' => $last7Days->pluck('submissions'),
         ]);
+    }
+
+    /**
+     * Get announcements for dashboard
+     */
+    private function getAnnouncements($schoolId = null)
+    {
+        return Announcement::active()
+            ->forSchool($schoolId)
+            ->with('author')
+            ->orderBy('is_pinned', 'desc')
+            ->orderBy('created_at', 'desc')
+            ->take(5)
+            ->get();
+    }
+
+    /**
+     * Get failed login attempts count (placeholder - you might want to implement proper tracking)
+     */
+    private function getFailedLoginsCount()
+    {
+        try {
+            $since = Carbon::now()->subHours(24);
+            return DB::table('failed_logins')
+                ->where('created_at', '>=', $since)
+                ->count();
+        } catch (\Throwable $e) {
+            return 0;
+        }
+    }
+
+    /**
+     * Store new announcement
+     */
+    public function storeAnnouncement(Request $request)
+    {
+        $request->validate([
+            'title' => 'required|string|max:255',
+            'message' => 'required|string',
+            'is_pinned' => 'boolean',
+            'expires_at' => 'nullable|date|after:now'
+        ]);
+
+        $user = Auth::user();
+        $activeSchool = $this->getActiveSchool();
+
+        Announcement::create([
+            'title' => $request->title,
+            'message' => $request->message,
+            'author_id' => $user->id,
+            'school_id' => $activeSchool ? $activeSchool->id : null,
+            'is_pinned' => $request->boolean('is_pinned'),
+            'expires_at' => $request->expires_at,
+            'status' => 'active'
+        ]);
+
+        if ($request->wantsJson()) {
+            return response()->json(['success' => true, 'message' => 'Announcement posted successfully!']);
+        }
+
+        return back()->with('success', 'Announcement posted successfully!');
     }
 }

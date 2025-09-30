@@ -11,6 +11,7 @@ use Illuminate\Support\Str; // Import Str facade
 use Carbon\Carbon; // Import Carbon for time manipulation
 use App\Notifications\VerifyEmailWithCode; // Import your custom notification
 
+
 class RegisterController extends Controller
 {
     // Method to show the instructor signup form
@@ -52,7 +53,10 @@ class RegisterController extends Controller
         // 4. Send the email verification notification with the code
         $user->notify(new VerifyEmailWithCode($verificationCode));
 
-        // 5. Redirect the user to the email verification notice page
+        // 5. Notify all admins about the new instructor registration
+    NotificationService::notifyAdminNewRegistration($user);
+
+        // 6. Redirect the user to the email verification notice page
         return redirect()->route('verification.notice')->with('status', 'A verification code has been sent to your email address.');
     }
 }

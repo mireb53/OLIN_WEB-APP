@@ -1640,7 +1640,7 @@
                 </div>
 
                 <div class="form-row">
-                    <div class="form-group">
+                    <!-- <div class="form-group">
                         <label for="title" class="form-label">Title/Position</label>
                         <select id="title" name="title" class="form-input">
                             <option value="">Select Title</option>
@@ -1651,7 +1651,7 @@
                             <option value="Lecturer" {{ Auth::user()->title == 'Lecturer' ? 'selected' : '' }}>Lecturer</option>
                             <option value="Senior Lecturer" {{ Auth::user()->title == 'Senior Lecturer' ? 'selected' : '' }}>Senior Lecturer</option>
                         </select>
-                    </div>
+                    </div> -->
 
                     <div class="form-group">
                         <label for="department" class="form-label">Department</label>

@@ -14,13 +14,15 @@ use App\Http\Controllers\Instructor\CourseController;
 use App\Http\Controllers\Instructor\MaterialController;
 use App\Http\Controllers\Instructor\AssessmentController;
 use App\Http\Controllers\Instructor\TopicController;
+use App\Http\Controllers\NotificationController;
+use App\Http\Controllers\Admin\AdminNotificationController;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Foundation\Auth\EmailVerificationRequest;
 use Illuminate\Http\Request;
 use App\Http\Controllers\Auth\VerificationController; // NEW: Import the new controller
 use App\Http\Controllers\Admin\SettingsController;
-use App\Http\Controllers\Admin\ReportLogController;
+use App\Http\Controllers\Admin\AdminReportsController;
 
 Route::get('/', function () {
     return view('welcome');
@@ -88,6 +90,9 @@ Route::middleware(['auth:web', 'role:super_admin,school_admin', 'verified'])->gr
     Route::get('/admin/dashboard/data', [AdminDashboardController::class, 'getDashboardData'])->name('admin.dashboard.data');
     Route::get('/admin/dashboard/chart-data', [AdminDashboardController::class, 'getChartData'])->name('admin.dashboard.chart-data');
     
+    // Announcement routes
+    Route::post('/admin/announcements', [AdminDashboardController::class, 'storeAnnouncement'])->name('admin.announcements.store');
+    
     // User Management routes
     Route::get('/admin/user-management', [UserManagementController::class, 'index'])->name('admin.user_management');
     Route::get('/admin/users', [UserManagementController::class, 'index'])->name('admin.users.index');
@@ -102,14 +107,33 @@ Route::middleware(['auth:web', 'role:super_admin,school_admin', 'verified'])->gr
     Route::post('/admin/users/{user}/reset-password', [UserManagementController::class, 'resetPassword'])->name('admin.users.reset-password');
     Route::delete('/admin/users/{user}', [UserManagementController::class, 'destroy'])->name('admin.users.destroy');
 
-    // Reports & Logs routes
-    Route::get('/admin/reports-logs', [ReportLogController::class, 'index'])->name('admin.reports_logs');
-    Route::get('/admin/reports/data', [ReportLogController::class, 'getReportData'])->name('admin.reports.data');
-    Route::get('/admin/reports/export', [ReportLogController::class, 'exportReports'])->name('admin.reports.export');
-    Route::get('/admin/logs/export', [ReportLogController::class, 'exportLogs'])->name('admin.logs.export');
+    // Reports & Logs routes (new AdminReportsController)
+    // Main page
+    Route::get('/admin/reports-logs', [AdminReportsController::class, 'index'])->name('admin.reports_logs');
+    // Alias path used by the filter modal redirect
+    Route::get('/admin/reports', [AdminReportsController::class, 'index']);
+    // Chart data (AJAX) - new canonical name
+    Route::post('/admin/reports/chart-data', [AdminReportsController::class, 'chartData'])->name('admin.reports.chartData');
+    // Legacy alias some code may still call
+    Route::match(['get','post'], '/admin/reports/data', [AdminReportsController::class, 'chartData'])->name('admin.reports.data');
+    // Instructor lookup (AJAX) used by filter modal
+    Route::post('/admin/reports/lookup-instructor', [AdminReportsController::class, 'lookupInstructor'])->name('admin.reports.lookupInstructor');
+    // Accept GET as well for flexibility
+    Route::get('/admin/reports/lookup-instructor', [AdminReportsController::class, 'lookupInstructor']);
+    // Exports (deprecated placeholders to keep route names working)
+    Route::get('/admin/reports/export', function () {
+        return redirect()->route('admin.reports_logs')->with('error', 'Export is not available in this version.');
+    })->name('admin.reports.export');
+    Route::get('/admin/logs/export', function () {
+        return redirect()->route('admin.reports_logs')->with('error', 'Logs export is not available in this version.');
+    })->name('admin.logs.export');
 
     // Admin Account/Profile route (profile page only)
     Route::get('/admin/account', [AdminAccountController::class, 'index'])->name('admin.account');
+    Route::put('/admin/account', [AdminAccountController::class, 'update'])->name('admin.account.update');
+    Route::post('/admin/account/change-password', [AdminAccountController::class, 'changePassword'])->name('admin.account.changePassword');
+    Route::post('/admin/account/upload-image', [AdminAccountController::class, 'uploadProfileImage'])->name('admin.account.uploadImage');
+    Route::delete('/admin/account/image', [AdminAccountController::class, 'deleteProfileImage'])->name('admin.account.deleteImage');
 
     // Admin Settings routes (system & school settings)
     Route::get('/admin/settings', [SettingsController::class, 'edit'])->name('admin.settings');
@@ -122,26 +146,73 @@ Route::middleware(['auth:web', 'role:super_admin,school_admin', 'verified'])->gr
     
     // Course Management routes
     Route::get('/admin/course-management', [CourseManagementController::class, 'index'])->name('admin.course_management');
+    // Legacy alias name with a distinct URI to avoid duplicate route collision
+    Route::get('/admin/courseManagement', function () {
+        return redirect()->route('admin.course_management');
+    })->name('admin.courseManagement');
+    // Legacy alias: some views expect admin.courseManagement.details
+    Route::get('/admin/course-management/{course}/details-page', [CourseManagementController::class, 'showDetails'])->name('admin.courseManagement.details');
     Route::get('/admin/courses/search', [CourseManagementController::class, 'search'])->name('admin.courses.search');
     Route::get('/admin/courses', [CourseManagementController::class, 'index'])->name('admin.courses.index');
     Route::get('/admin/courses/create', [CourseManagementController::class, 'create'])->name('admin.courses.create');
     Route::post('/admin/courses', [CourseManagementController::class, 'store'])->name('admin.courses.store');
     Route::get('/admin/courses/find-instructor', [CourseManagementController::class, 'findInstructor'])->name('admin.courses.findInstructor');
+    // Accept POST as well for fetch() calls that send JSON bodies
+    Route::post('/admin/courses/find-instructor', [CourseManagementController::class, 'findInstructor']);
     Route::get('/admin/courses/{course}', [CourseManagementController::class, 'show'])->name('admin.courses.show');
     Route::get('/admin/courses/{course}/details', [CourseManagementController::class, 'showDetails'])->name('admin.courses.details');
     Route::get('/admin/courses/{course}/edit', [CourseManagementController::class, 'edit'])->name('admin.courses.edit');
     Route::put('/admin/courses/{course}', [CourseManagementController::class, 'update'])->name('admin.courses.update');
     Route::delete('/admin/courses/{course}', [CourseManagementController::class, 'destroy'])->name('admin.courses.destroy');
 
+    // More legacy aliases mapped to the same controller actions
+    Route::get('/admin/course-management/{course}', [CourseManagementController::class, 'show'])->name('admin.courseManagement.show');
+    Route::get('/admin/course-management/{course}/edit', [CourseManagementController::class, 'edit'])->name('admin.courseManagement.edit');
+    Route::put('/admin/course-management/{course}', [CourseManagementController::class, 'update'])->name('admin.courseManagement.update');
+    Route::delete('/admin/course-management/{course}', [CourseManagementController::class, 'destroy'])->name('admin.courseManagement.delete');
+    Route::get('/admin/course-management/find-instructor', [CourseManagementController::class, 'findInstructor'])->name('admin.courseManagement.findInstructor');
+    Route::post('/admin/course-management/find-instructor', [CourseManagementController::class, 'findInstructor']);
+    Route::post('/admin/course-management', [CourseManagementController::class, 'store'])->name('admin.courseManagement.store');
+
+    // Admin materials view (stream inline if possible)
+    Route::get('/admin/materials/{material}/view', [CourseManagementController::class, 'viewMaterial'])->name('admin.materials.view');
+
+    // Admin assessments endpoints used by course-details modal
+    Route::get('/admin/assessments/{assessment}/details', [CourseManagementController::class, 'assessmentDetails'])->name('admin.assessments.details');
+    Route::get('/admin/assessments/{assessment}/file', function($assessmentId){
+        // Reuse the material viewer if assessments attach a file via assessment_file_path
+        $assessment = \App\Models\Assessment::findOrFail($assessmentId);
+        if (!$assessment->assessment_file_path || !\Storage::disk('public')->exists($assessment->assessment_file_path)) {
+            abort(404, 'File not found');
+        }
+        $path = $assessment->assessment_file_path;
+        $mime = \Storage::disk('public')->mimeType($path);
+        $stream = \Storage::disk('public')->readStream($path);
+        $disposition = in_array($mime, ['application/pdf','image/png','image/jpeg','image/gif','text/plain']) ? 'inline' : 'attachment';
+        return response()->stream(function() use ($stream) { fpassthru($stream); }, 200, [
+            'Content-Type' => $mime,
+            'Content-Disposition' => $disposition.'; filename="'.basename($path).'"'
+        ]);
+    })->name('admin.assessments.file');
+
     // Help routes removed (no longer in layout)
     
     // Admin 2FA routes (for admin account management)
     Route::post('/admin/request-2fa', [TwoFactorController::class, 'request2FACode'])->name('admin.request-2fa');
     Route::post('/admin/verify-2fa', [TwoFactorController::class, 'verify2FACode'])->name('admin.verify-2fa');
+    // Legacy aliases used by some blades/scripts
+    Route::post('/admin/request2fa', [TwoFactorController::class, 'request2FACode'])->name('admin.request2fa');
+    Route::post('/admin/verify2fa', [TwoFactorController::class, 'verify2FACode'])->name('admin.verify2fa');
 
     // Backward compatibility for older blade/js expecting admin.users.* route names
     Route::post('/admin/users/request-2fa', [TwoFactorController::class, 'request2FACode'])->name('admin.users.request-2fa');
     Route::post('/admin/users/verify-2fa', [TwoFactorController::class, 'verify2FACode'])->name('admin.users.verify-2fa');
+
+    // Admin notification routes
+    Route::get('/admin/notifications', [AdminNotificationController::class, 'index'])->name('admin.notifications');
+    Route::post('/admin/notifications/{id}/mark-as-read', [AdminNotificationController::class, 'markAsRead'])->name('admin.notifications.markAsRead');
+    Route::post('/admin/notifications/mark-all-as-read', [AdminNotificationController::class, 'markAllAsRead'])->name('admin.notifications.markAllAsRead');
+    
 });
 
 

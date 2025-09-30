@@ -11,17 +11,19 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::table('activity_logs', function (Blueprint $table) {
-            if (!Schema::hasColumn('activity_logs', 'user_id')) {
-                $table->foreignId('user_id')->constrained()->onDelete('cascade');
-            }
-            if (!Schema::hasColumn('activity_logs', 'action')) {
-                $table->string('action');
-            }
-            if (!Schema::hasColumn('activity_logs', 'details')) {
-                $table->text('details')->nullable();
-            }
-        });
+        if (Schema::hasTable('activity_logs')) {
+            Schema::table('activity_logs', function (Blueprint $table) {
+                if (!Schema::hasColumn('activity_logs', 'user_id')) {
+                    $table->foreignId('user_id')->constrained()->onDelete('cascade');
+                }
+                if (!Schema::hasColumn('activity_logs', 'action')) {
+                    $table->string('action');
+                }
+                if (!Schema::hasColumn('activity_logs', 'details')) {
+                    $table->text('details')->nullable();
+                }
+            });
+        }
     }
 
     /**

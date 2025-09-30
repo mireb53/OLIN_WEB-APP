@@ -43,6 +43,7 @@ class User extends Authenticatable implements MustVerifyEmail
         'gender',
         'address',
         'last_login_at',
+        'last_activity_at',
     ];
 
     protected $hidden = [
@@ -58,6 +59,7 @@ class User extends Authenticatable implements MustVerifyEmail
             'email_verification_code_expires_at' => 'datetime',
             'birth_date' => 'date',
             'last_login_at' => 'datetime',
+            'last_activity_at' => 'datetime',
         ];
     }
 

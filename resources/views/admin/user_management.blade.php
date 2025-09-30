@@ -104,13 +104,26 @@
                     <tbody class="divide-y divide-gray-200">
                         @foreach($users as $user)
                             <tr class="hover:bg-gray-50">
-                                {{-- Name + Avatar --}}
+                                {{-- Name + Avatar + Online Indicator --}}
                                 <td class="px-4 py-3 flex items-center space-x-3">
                                     <div class="w-8 h-8 flex items-center justify-center rounded-full text-white font-bold
                                         {{ $loop->index % 4 == 0 ? 'bg-red-400' : ($loop->index % 4 == 1 ? 'bg-teal-400' : ($loop->index % 4 == 2 ? 'bg-green-400' : 'bg-orange-400')) }}">
                                         {{ strtoupper(substr($user->name, 0, 1)) }}
                                     </div>
-                                    <span class="font-medium text-gray-800">{{ $user->name }}</span>
+                                    <div class="flex items-center space-x-2">
+                                        <span class="font-medium text-gray-800">{{ $user->name }}</span>
+                                        {{-- Online Status Indicator (Based on Session Activity) --}}
+                                        @php
+                                            $isOnline = in_array($user->id, $onlineUserIds ?? []);
+                                        @endphp
+                                        <div class="relative">
+                                            <div class="w-3 h-3 rounded-full {{ $isOnline ? 'bg-green-500' : 'bg-gray-400' }}" 
+                                                 title="{{ $isOnline ? 'Online (active in last 15 minutes)' : 'Offline' }}"></div>
+                                            @if($isOnline)
+                                                <div class="absolute -top-0.5 -right-0.5 w-2 h-2 bg-green-400 rounded-full animate-ping"></div>
+                                            @endif
+                                        </div>
+                                    </div>
                                 </td>
 
                                 {{-- Email --}}

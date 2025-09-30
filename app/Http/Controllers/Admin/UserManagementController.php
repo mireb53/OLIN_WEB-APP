@@ -108,6 +108,33 @@ class UserManagementController extends Controller
                       ->paginate(8)
                       ->appends($request->except('page'));
 
+        // Get online user IDs based on session activity (last 15 minutes)
+        $onlineThresholdMinutes = 15;
+        $thresholdTimestamp = Carbon::now()->subMinutes($onlineThresholdMinutes)->timestamp;
+        
+        $sessionRows = DB::table('sessions')
+            ->where('last_activity', '>=', $thresholdTimestamp)
+            ->get();
+
+        $onlineUserIds = [];
+        foreach ($sessionRows as $sr) {
+            if (!empty($sr->user_id)) {
+                $onlineUserIds[] = (int)$sr->user_id;
+                continue;
+            }
+            // Extract user id from payload for guest sessions that became authenticated
+            $payload = $sr->payload ?? '';
+            if (preg_match('/user_id";i:(\d+);/i', $payload, $m)) {
+                $onlineUserIds[] = (int)$m[1];
+            } elseif (preg_match('/"id";i:(\d+);/i', $payload, $m2)) {
+                $onlineUserIds[] = (int)$m2[1];
+            } elseif (preg_match('/"id"\s*:\s*(\d+)/', $payload, $m3)) {
+                $onlineUserIds[] = (int)$m3[1];
+            }
+        }
+        
+        $onlineUserIds = array_values(array_unique(array_filter($onlineUserIds)));
+
         return view('admin.user_management', compact(
             'users', 
             'role', 
@@ -115,7 +142,8 @@ class UserManagementController extends Controller
             'search', 
             'schools', 
             'activeSchool',
-            'schoolFilter'
+            'schoolFilter',
+            'onlineUserIds'
         ));
     }
 

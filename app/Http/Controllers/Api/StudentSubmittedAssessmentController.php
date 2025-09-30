@@ -15,6 +15,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
 use Illuminate\Support\Facades\Log;
+use App\Services\NotificationService;
 
 class StudentSubmittedAssessmentController extends Controller
 {
@@ -490,6 +491,13 @@ class StudentSubmittedAssessmentController extends Controller
 
             DB::commit();
 
+            // Notify the instructor about the assignment submission
+            NotificationService::notifyInstructorAssignmentSubmission(
+                $assessment->course->instructor_id,
+                $user,
+                $assessment
+            );
+
             return response()->json([
                 'message' => 'Assignment submitted successfully.',
                 'submitted_at' => $submittedAssessment->submitted_at,
@@ -687,6 +695,16 @@ class StudentSubmittedAssessmentController extends Controller
             ]);
 
             DB::commit();
+
+            // Notify the instructor about the quiz submission
+            $assessment = $submittedAssessment->assessment;
+            if ($assessment && $assessment->course && $assessment->course->instructor_id) {
+                NotificationService::notifyInstructorAssignmentSubmission(
+                    $assessment->course->instructor_id,
+                    $user,
+                    $assessment
+                );
+            }
 
             return response()->json([
                 'message' => 'Quiz completed successfully!',

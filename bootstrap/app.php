@@ -15,16 +15,16 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware) {
         // Register your custom route middleware here
         $middleware->alias([
-            'role' => \App\Http\Middleware\RoleMiddleware::class, // <-- ADD THIS LINE
+            'role' => \App\Http\Middleware\RoleMiddleware::class,
+            'update.last.activity' => \App\Http\Middleware\UpdateLastActivity::class,
         ]);
 
-        // If you have any global middleware, they'd go here:
-        // $middleware->web(append: [
-        //     \App\Http\Middleware\TrustProxies::class,
-        // ]);
-        // $middleware->api(append: [
-        //     \Laravel\Sanctum\Http\Middleware\EnsureFrontendRequestsAreStateful::class,
-        // ]);
+        // Append to web middleware stack so it runs on every web request
+        $middleware->web(append: [
+            \App\Http\Middleware\UpdateLastActivity::class,
+        ]);
+
+        // If you have any global middleware, they'd go here for api stack as well if needed.
     })
     ->withExceptions(function (Exceptions $exceptions) {
         //

@@ -50,8 +50,41 @@ function closeCustomModal() {
 // ========================
 function initializeButtons() {
     // Profile Section
-    document.getElementById('changePhotoBtn')?.addEventListener('click', () => showInfoModal('Administrator photo change functionality would open a secure file picker dialog.'));
-    document.getElementById('changePasswordBtn')?.addEventListener('click', () => showInfoModal('Administrator password change requires additional security verification.'));
+    document.getElementById('changePhotoBtn')?.addEventListener('click', () => {
+        const input = document.querySelector('#uploadPhotoForm #profile_image');
+        input?.click();
+    });
+    // Toggle the real password form instead of showing an info modal
+    document.getElementById('changePasswordBtn')?.addEventListener('click', () => {
+        const f = document.getElementById('passwordForm');
+        if (f) f.classList.toggle('hidden');
+    });
+
+    // Handle image upload via POST (avoid PUT from the other form)
+    const uploadForm = document.getElementById('uploadPhotoForm');
+    const uploadInput = uploadForm?.querySelector('#profile_image');
+    if (uploadForm && uploadInput) {
+        uploadInput.addEventListener('change', async () => {
+            if (!uploadInput.files || uploadInput.files.length === 0) return;
+            const url = uploadForm.getAttribute('data-upload-url');
+            const token = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+            const formData = new FormData();
+            formData.append('profile_image', uploadInput.files[0]);
+            try {
+                const resp = await fetch(url, {
+                    method: 'POST',
+                    headers: { 'X-CSRF-TOKEN': token },
+                    body: formData
+                });
+                if (!resp.ok) throw new Error('Upload failed');
+                // Reload to display new image
+                window.location.reload();
+            } catch (e) {
+                console.error(e);
+                showInfoModal('Failed to upload image. Please try again.');
+            }
+        });
+    }
     document.getElementById('saveProfileBtn')?.addEventListener('click', saveChanges);
     
     // Help Section

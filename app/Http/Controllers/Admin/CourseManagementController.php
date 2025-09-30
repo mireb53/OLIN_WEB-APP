@@ -5,39 +5,24 @@ namespace App\Http\Controllers\Admin;
 use Illuminate\Http\Request;
 use App\Http\Controllers\Controller;
 use App\Models\Course;
+use App\Models\Material;
+use App\Models\Assessment;
 use Illuminate\Support\Facades\Auth;
 use App\Models\Program;
 use App\Models\User;
 
 class CourseManagementController extends Controller
 {
-    public function index(Request $request)
+    public function index()
     {
-        $user = Auth::user();
-
-        // Determine active school context (super_admin selects, school_admin fixed)
-        $activeSchoolId = null;
-        if ($user->role === 'super_admin') {
-            $activeSchoolId = session('active_school');
-        } elseif ($user->role === 'school_admin') {
-            $activeSchoolId = $user->school_id;
-        }
-
+        // Server-side filtering and pagination
         $query = Course::with(['instructor','program'])->withCount('students');
+        // Define allowed departments (could be moved to config if needed)
+        $departmentsList = ['CCS','CAS','CHS','CEA','CTDE','CTHBM'];
 
-        // Scope courses to active school if set (join via instructor->school_id OR program->school_id)
-        if ($activeSchoolId) {
-            $query->where(function($scoped) use ($activeSchoolId) {
-                $scoped->whereHas('instructor', function($q) use ($activeSchoolId) {
-                    $q->where('school_id', $activeSchoolId);
-                })->orWhereHas('program', function($q) use ($activeSchoolId) {
-                    $q->where('school_id', $activeSchoolId);
-                });
-            });
-        }
-
-        // Search
-        if ($q = $request->input('q')) {
+        // search q: course title, id, instructor name, program name
+        $q = request()->input('q');
+        if ($q) {
             $query->where(function($sub) use ($q) {
                 $sub->where('title', 'like', "%{$q}%")
                     ->orWhere('id', 'like', "%{$q}%")
@@ -46,26 +31,51 @@ class CourseManagementController extends Controller
             });
         }
 
-        // Program filter (ensure program belongs to active school if any)
-        if ($programFilter = $request->input('program')) {
-            $query->where('program_id', $programFilter);
+        // filter by program (accept numeric id or program name/code)
+        $programFilter = request()->input('program');
+        if ($programFilter) {
+            if (ctype_digit((string)$programFilter)) {
+                $query->where('program_id', $programFilter);
+            } else {
+                $query->whereHas('program', function($pq) use ($programFilter) {
+                    $pq->where('name', $programFilter);
+                });
+            }
         }
 
-        // Status filter
-        if ($statusFilter = $request->input('status')) {
+        // filter by status
+        $statusFilter = request()->input('status');
+        if ($statusFilter) {
             $query->where('status', $statusFilter);
         }
 
-        $courses = $query->orderBy('created_at','desc')->paginate(10)->withQueryString();
-
-        // Programs limited to active school (if set)
-        $programsQuery = Program::query();
-        if ($activeSchoolId) {
-            $programsQuery->where('school_id', $activeSchoolId);
+        // filter by instructor department
+        $departmentFilter = request()->input('department');
+        if ($departmentFilter && in_array($departmentFilter, $departmentsList, true)) {
+            $query->whereHas('instructor', function($dq) use ($departmentFilter) {
+                $dq->where('department', $departmentFilter);
+            });
         }
-        $programs = $programsQuery->orderBy('name')->get();
 
-        return view('admin.course_management', compact('courses','programs'));
+    $courses = $query->orderBy('created_at','desc')->paginate(10)->withQueryString();
+
+        // load all programs for the create modal program select
+        $programs = Program::orderBy('name')->get();
+        return view('admin.course_management', compact('courses','programs'))
+            ->with('departments', $departmentsList)
+            ->with('selectedDepartment', $departmentFilter);
+    }
+
+    // GET /admin/courses/search -> reuse index filters
+    public function search(Request $request)
+    {
+        return $this->index();
+    }
+
+    // GET /admin/courses/create -> no separate page; redirect to management
+    public function create(Request $request)
+    {
+        return redirect()->route('admin.course_management');
     }
 
     /**
@@ -75,24 +85,11 @@ class CourseManagementController extends Controller
     {
         $request->validate(['email' => 'required|email']);
         $email = $request->input('email');
-
-        $user = Auth::user();
-        $activeSchoolId = null;
-        if ($user->role === 'super_admin') {
-            $activeSchoolId = session('active_school');
-        } elseif ($user->role === 'school_admin') {
-            $activeSchoolId = $user->school_id;
-        }
-
-        $instructorQuery = User::where('email', $email)->where('role', 'instructor');
-        if ($activeSchoolId) {
-            $instructorQuery->where('school_id', $activeSchoolId);
-        }
-        $instructor = $instructorQuery->first();
-        if (!$instructor) {
+        $user = User::where('email', $email)->where('role', 'instructor')->first();
+        if (!$user) {
             return response()->json(['success' => false, 'message' => 'Instructor not found.'], 404);
         }
-        return response()->json(['success' => true, 'instructor' => ['id' => $instructor->id, 'name' => $instructor->name, 'email' => $instructor->email]]);
+        return response()->json(['success' => true, 'instructor' => ['id' => $user->id, 'name' => $user->name, 'email' => $user->email]]);
     }
 
     /**
@@ -100,74 +97,52 @@ class CourseManagementController extends Controller
      */
     public function store(Request $request)
     {
-        $user = Auth::user();
-        $activeSchoolId = null;
-        if ($user->role === 'super_admin') {
-            $activeSchoolId = session('active_school');
-        } elseif ($user->role === 'school_admin') {
-            $activeSchoolId = $user->school_id;
-        }
-
-        $validated = $request->validate([
-            'title' => 'required|string|max:255',
-            'course_code' => 'nullable|string|max:50|unique:courses,course_code',
-            'status' => 'required|in:published,draft,archived',
-            'program_id' => 'nullable|exists:programs,id',
-            'description' => 'nullable|string',
-            'credits' => 'nullable|numeric|min:0',
-            'instructor_id' => 'required|exists:users,id',
-        ]);
-
-        // Ensure instructor belongs to active school (if scoped)
-        if ($activeSchoolId) {
-            $instructorValid = User::where('id', $validated['instructor_id'])
-                ->where('role','instructor')
-                ->where('school_id', $activeSchoolId)
-                ->exists();
-            if (!$instructorValid) {
-                return response()->json(['success' => false, 'message' => 'Instructor not in selected school.'], 422);
-            }
-            if (!empty($validated['program_id'])) {
-                $programValid = Program::where('id',$validated['program_id'])->where('school_id',$activeSchoolId)->exists();
-                if (!$programValid) {
-                    return response()->json(['success'=>false,'message'=>'Program not in selected school.'],422);
-                }
-            }
-        }
+          $validated = $request->validate([
+        'title' => 'required|string|max:255',
+        'course_code' => 'required|string|max:50|unique:courses,course_code',
+        'status' => 'required|in:published,draft,archived',
+        'program_id' => 'required|exists:programs,id',
+        'description' => 'nullable|string',
+        'credits' => 'nullable|numeric|min:0',
+        'instructor_id' => 'required|exists:users,id',
+    ]);
 
         $course = Course::create($validated);
+        // load relations for client-side append
         $course->load('instructor','program');
-        return response()->json(['success'=>true,'course'=>$course]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Course created successfully',
+            'course' => $course
+        ]);
     }
 
     public function show($courseId)
     {
-        $user = Auth::user();
-        $activeSchoolId = null;
-        if ($user->role === 'super_admin') {
-            $activeSchoolId = session('active_school');
-        } elseif ($user->role === 'school_admin') {
-            $activeSchoolId = $user->school_id;
-        }
+        $course = \App\Models\Course::with([
+            'instructor',
+            'program',
+            'topics',
+            'materials',
+            'assessments',
+            'students'
+        ])->findOrFail($courseId);
 
-        $course = Course::with(['instructor','program','topics','materials','assessments','students'])->findOrFail($courseId);
-
-        if ($activeSchoolId) {
-            $inScope = false;
-            if ($course->instructor && $course->instructor->school_id == $activeSchoolId) $inScope = true;
-            if ($course->program && $course->program->school_id == $activeSchoolId) $inScope = true;
-            if (!$inScope) {
-                return response()->json(['success'=>false,'message'=>'Course not in selected school.'],403);
-            }
-        }
-
+        // If the request expects JSON (AJAX/modal), return JSON payload
         if (request()->wantsJson() || request()->ajax()) {
-            $course->students = $course->students->map(function($s){
-                return ['id'=>$s->id,'name'=>$s->name,'email'=>$s->email];
+            // Format students for modal (only id, name, email)
+            $course->students = $course->students->map(function($s) {
+                return [
+                    'id' => $s->id,
+                    'name' => $s->name,
+                    'email' => $s->email
+                ];
             })->values();
-            return response()->json(['success'=>true,'course'=>$course]);
+            return response()->json(['success' => true, 'course' => $course]);
         }
-        return redirect()->route('admin.course_management');
+        // For direct page access, redirect back to course management (we now use modals)
+    return redirect()->route('admin.course_management');
     }
 
     /**
@@ -175,80 +150,136 @@ class CourseManagementController extends Controller
      */
     public function showDetails($courseId)
     {
-        $user = Auth::user();
-        $activeSchoolId = null;
-        if ($user->role === 'super_admin') {
-            $activeSchoolId = session('active_school');
-        } elseif ($user->role === 'school_admin') {
-            $activeSchoolId = $user->school_id;
-        }
-        $course = Course::with(['instructor','program','topics','materials','assessments','students'])->findOrFail($courseId);
-        if ($activeSchoolId) {
-            $inScope = false;
-            if ($course->instructor && $course->instructor->school_id == $activeSchoolId) $inScope = true;
-            if ($course->program && $course->program->school_id == $activeSchoolId) $inScope = true;
-            if (!$inScope) abort(403,'Course not in selected school');
-        }
+        $course = \App\Models\Course::with([
+            'instructor',
+            'program',
+            'topics',
+            'materials',
+            'assessments',
+            'students'
+        ])->findOrFail($courseId);
+
         return view('admin.courses.course-details', compact('course'));
     }
 
     public function edit($courseId)
     {
-        $user = Auth::user();
-        $activeSchoolId = null;
-        if ($user->role === 'super_admin') $activeSchoolId = session('active_school');
-        elseif ($user->role === 'school_admin') $activeSchoolId = $user->school_id;
         $course = Course::with('instructor')->findOrFail($courseId);
-        if ($activeSchoolId) {
-            $inScope = false;
-            if ($course->instructor && $course->instructor->school_id == $activeSchoolId) $inScope = true;
-            if ($course->program && $course->program->school_id == $activeSchoolId) $inScope = true;
-            if (!$inScope) return response()->json(['success'=>false,'message'=>'Course not in selected school.'],403);
-        }
+        // Return JSON for modal edit; redirect to management if accessed directly
         if (request()->wantsJson() || request()->ajax()) {
-            return response()->json(['success'=>true,'course'=>$course]);
+            return response()->json(['success' => true, 'course' => $course]);
         }
-        return redirect()->route('admin.course_management');
+    return redirect()->route('admin.course_management');
     }
 
     public function update(Request $request, $courseId)
     {
-        $user = Auth::user();
-        $activeSchoolId = null;
-        if ($user->role === 'super_admin') $activeSchoolId = session('active_school');
-        elseif ($user->role === 'school_admin') $activeSchoolId = $user->school_id;
-
         $course = Course::findOrFail($courseId);
-        if ($activeSchoolId) {
-            $inScope = false;
-            if ($course->instructor && $course->instructor->school_id == $activeSchoolId) $inScope = true;
-            if ($course->program && $course->program->school_id == $activeSchoolId) $inScope = true;
-            if (!$inScope) return redirect()->back()->with('error','Course not in selected school');
-        }
-
         $validated = $request->validate([
             'title' => 'required|string|max:255',
-            'status' => 'required|in:published,draft,archived'
+            // Make course_code optional on edit; only validate uniqueness when provided
+            'course_code' => 'nullable|string|max:50|unique:courses,course_code,' . $course->id,
+            'status' => 'required|in:published,draft,archived',
+            'program_id' => 'nullable|exists:programs,id',
+            'description' => 'nullable|string',
+            'credits' => 'nullable|numeric|min:0'
         ]);
-        $course->update($validated);
-        // The edit modal submits a normal form -> redirect back
-        return redirect()->route('admin.course_management')->with('success','Course updated successfully.');
+
+        // Preserve existing course_code if not provided (avoid nulling it out)
+        if (!array_key_exists('course_code', $validated) || $validated['course_code'] === null || $validated['course_code'] === '') {
+            unset($validated['course_code']);
+        }
+        $course->fill($validated);
+        $course->save();
+
+        if ($request->wantsJson() || $request->ajax()) {
+            return response()->json(['success' => true, 'course' => $course->fresh('program')]);
+        }
+        return redirect()->route('admin.courseManagement')->with('success', 'Course updated successfully.');
     }
 
     public function destroy($courseId)
     {
-        $user = Auth::user();
-        $activeSchoolId = null;
-        if ($user->role === 'super_admin') $activeSchoolId = session('active_school');
-        elseif ($user->role === 'school_admin') $activeSchoolId = $user->school_id;
         $course = Course::findOrFail($courseId);
-        if ($activeSchoolId) {
-            $inScope = false;
-            if ($course->instructor && $course->instructor->school_id == $activeSchoolId) $inScope = true;
-            if ($course->program && $course->program->school_id == $activeSchoolId) $inScope = true;
-            if (!$inScope) return response()->json(['success'=>false,'message'=>'Course not in selected school'],403);
-        }
         $course->delete();
-        return response()->json(['success'=>true]);
+        return response()->json(['success' => true]);
+    }
+
+    /**
+     * Stream / view a material (primarily PDF) in a new browser tab.
+     * Falls back to download if file type not directly displayable.
+     */
+    public function viewMaterial(Material $material)
+    {
+        // Security: ensure relationship to a course (already implicit) - additional checks could be added.
+        if (!$material->file_path || !\Storage::disk('public')->exists($material->file_path)) {
+            abort(404, 'Material file not found');
+        }
+        $path = $material->file_path;
+        $mime = \Storage::disk('public')->mimeType($path);
+        $stream = \Storage::disk('public')->readStream($path);
+        $disposition = in_array($mime, ['application/pdf','image/png','image/jpeg','image/gif','text/plain']) ? 'inline' : 'attachment';
+        return response()->stream(function() use ($stream) {
+            fpassthru($stream);
+        }, 200, [
+            'Content-Type' => $mime,
+            'Content-Disposition' => $disposition.'; filename="'.basename($path).'"'
+        ]);
+    }
+
+    /**
+     * Provide assessment full details including questions & options for modal display (AJAX JSON).
+     */
+    public function assessmentDetails(Assessment $assessment)
+    {
+        $assessment->load(['questions.options']);
+        $payload = [
+            'id' => $assessment->id,
+            'title' => $assessment->title,
+            'type' => $assessment->type,
+            'description' => $assessment->description,
+            'duration_minutes' => $assessment->duration_minutes,
+            'available_at' => $assessment->available_at?->toDateTimeString(),
+            'unavailable_at' => $assessment->unavailable_at?->toDateTimeString(),
+            'has_file' => (bool)$assessment->assessment_file_path,
+            'questions' => $assessment->questions->map(function($q){
+                return [
+                    'id' => $q->id,
+                    'text' => $q->question_text,
+                    'type' => $q->question_type,
+                    'points' => $q->points,
+                    'order' => $q->order,
+                    'correct_answer' => $q->correct_answer,
+                    'options' => $q->options->map(function($o){
+                        return [
+                            'id' => $o->id,
+                            'text' => $o->option_text,
+                            'order' => $o->option_order,
+                            // expose correctness flag if schema supports it
+                            'is_correct' => (bool)($o->is_correct ?? false),
+                        ];
+                    })->values(),
+                ];
+            })->values(),
+        ];
+        return response()->json(['success' => true, 'assessment' => $payload]);
+    }
+
+    /**
+     * Stream / view attached assessment file if present.
+     */
+    public function viewAssessmentFile(Assessment $assessment)
+    {
+        if (!$assessment->assessment_file_path || !\Storage::disk('public')->exists($assessment->assessment_file_path)) {
+            abort(404, 'Assessment file not found');
+        }
+        $path = $assessment->assessment_file_path;
+        $mime = \Storage::disk('public')->mimeType($path);
+        $stream = \Storage::disk('public')->readStream($path);
+        $disposition = in_array($mime, ['application/pdf','image/png','image/jpeg','image/gif','text/plain']) ? 'inline' : 'attachment';
+        return response()->stream(function() use ($stream) { fpassthru($stream); }, 200, [
+            'Content-Type' => $mime,
+            'Content-Disposition' => $disposition.'; filename="'.basename($path).'"'
+        ]);
     }
 }

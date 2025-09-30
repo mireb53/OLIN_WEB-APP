@@ -1,0 +1,7 @@
+Cleanup performed on 2025-09-30:
+- Reverted notification bell UI/scripts in resources/views/Components/layoutAdmin.blade.php
+- Removed notification modal markup and styles
+- Removed debug test button and helper functions
+- Removed AdminNotificationTestController import and routes from routes/web.php
+- Left existing AdminNotificationController and core notification routes untouched
+- Pending manual deletion if desired: app/Http/Controllers/Admin/AdminNotificationTestController.php and resources/views/admin/notification-test.blade.php (they existed before my changes)

@@ -15,6 +15,7 @@ use App\Models\Course;
 use App\Models\User;
 use Illuminate\Support\Facades\log;
 
+
 class InstructorController extends Controller
 {
     public function index()
@@ -535,6 +536,13 @@ class InstructorController extends Controller
                 }
 
                 $results['added'][] = $email;
+
+                // Create instructor notification for student enrollment
+                NotificationService::notifyInstructorStudentEnrollment(
+                    $course->instructor_id,
+                    $user,
+                    $course
+                );
 
                 // Send notification email if requested
                 if ($request->send_notification) {
