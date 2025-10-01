@@ -586,6 +586,61 @@ class AdminReportsController extends Controller
             $selectedCourseName = $courseName;
         }
 
+        // Failed login attempts (with optional filters)
+        $from = $request->input('from');
+        $to = $request->input('to');
+        $userSearch = $request->input('user');
+
+        $failedLoginsQuery = DB::table('failed_logins as f')
+            ->leftJoin('users as u', 'u.id', '=', 'f.user_id');
+
+        if (!empty($from)) {
+            try {
+                $fromDt = Carbon::parse($from)->startOfDay();
+                $failedLoginsQuery->where('f.created_at', '>=', $fromDt);
+            } catch (\Throwable $e) { /* ignore invalid date */ }
+        }
+        if (!empty($to)) {
+            try {
+                $toDt = Carbon::parse($to)->endOfDay();
+                $failedLoginsQuery->where('f.created_at', '<=', $toDt);
+            } catch (\Throwable $e) { /* ignore invalid date */ }
+        }
+        if (!empty($userSearch)) {
+            $failedLoginsQuery->where(function($q) use ($userSearch) {
+                $q->where('u.name', 'like', "%{$userSearch}%")
+                  ->orWhere('u.email', 'like', "%{$userSearch}%")
+                  ->orWhere('f.email', 'like', "%{$userSearch}%");
+            });
+        }
+
+        // Build aggregation subquery for attempts by identifier (user_id or email) within the same date window
+        $aggregation = DB::table('failed_logins as fi')
+            ->selectRaw('COALESCE(fi.user_id, 0) as uid_key, COALESCE(fi.email, "") as email_key, COUNT(*) as attempts');
+        if (isset($fromDt)) {
+            $aggregation->where('fi.created_at', '>=', $fromDt);
+        }
+        if (isset($toDt)) {
+            $aggregation->where('fi.created_at', '<=', $toDt);
+        }
+        $aggregation->groupByRaw('COALESCE(fi.user_id, 0), COALESCE(fi.email, "")');
+
+        $failedLogins = $failedLoginsQuery
+            ->joinSub($aggregation, 'fa', function($join) {
+                $join->on(DB::raw('COALESCE(f.user_id, 0)'), '=', 'fa.uid_key')
+                     ->on(DB::raw('COALESCE(f.email, "")'), '=', 'fa.email_key');
+            })
+            ->select([
+                'f.created_at',
+                'f.ip_address',
+                DB::raw("COALESCE(u.name, f.email, 'Unknown') as user_identifier"),
+                DB::raw("'Invalid credentials' as reason"),
+                DB::raw('fa.attempts as attempts'),
+            ])
+            ->orderBy('f.created_at', 'desc')
+            ->limit(200)
+            ->get();
+
         return view('admin.reports.reports_logs', [
             // Use global chart data so the graph doesn't change with filters
             'labels' => $chartLabels,
@@ -640,6 +695,7 @@ class AdminReportsController extends Controller
             'selectedProgramName' => $selectedProgramName,
             'selectedCourseName' => $selectedCourseName,
             'filtersApplied' => $filtersApplied,
+            'failedLogins' => $failedLogins,
         ]);
     }
 

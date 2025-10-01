@@ -1,8 +1,81 @@
 <x-layoutAdmin>
-<div class="space-y-6">
+@push('styles')
+<style>
+  .card-hover { transition: transform .2s ease, box-shadow .2s ease; }
+  .card-hover:hover { transform: translateY(-4px); box-shadow: 0 10px 24px rgba(0,0,0,.08); }
+  .chip { display:inline-flex; align-items:center; padding:.25rem .5rem; font-size:.75rem; border-radius:9999px; }
+  .chip-blue { background:#eff6ff; color:#1d4ed8; }
+  .chip-amber { background:#fffbeb; color:#b45309; }
+  .chip-green { background:#ecfdf5; color:#047857; }
+  .rank-badge { width:1.75rem; height:1.75rem; border-radius:.5rem; display:flex; align-items:center; justify-content:center; font-weight:700; }
+  .rank-1 { background:linear-gradient(135deg,#4f46e5,#7c3aed); color:#fff; }
+  .rank-2 { background:#e0e7ff; color:#4338ca; }
+  .rank-3 { background:#ede9fe; color:#6d28d9; }
+</style>
+@endpush
+<div class="space-y-8">
+  {{-- Failed Login Attempts Section --}}
+  <section class="mb-6">
+    <div class="bg-white rounded-3xl p-6 shadow border border-gray-100">
+      <div class="flex items-center mb-4">
+        <div class="w-10 h-10 bg-gradient-to-r from-red-500 to-red-600 rounded-xl flex items-center justify-center mr-3">
+          <span class="text-xl">🛡️</span>
+        </div>
+        <div>
+          <h2 class="text-xl font-bold text-gray-900">Failed Login Attempts</h2>
+          <p class="text-gray-600 text-sm">Detailed records of failed authentication within the system</p>
+        </div>
+      </div>
+
+      <form method="GET" class="mb-4 flex flex-col md:flex-row gap-3">
+        <input type="date" name="from" value="{{ request('from') }}" class="border border-gray-300 rounded-xl px-4 py-2 w-full md:w-auto">
+        <input type="date" name="to" value="{{ request('to') }}" class="border border-gray-300 rounded-xl px-4 py-2 w-full md:w-auto">
+        <input type="text" name="user" value="{{ request('user') }}" placeholder="Search user/email" class="border border-gray-300 rounded-xl px-4 py-2 w-full md:w-1/3">
+        <button type="submit" class="px-6 py-2 bg-red-600 text-white rounded-xl hover:bg-red-700 shadow">Filter</button>
+      </form>
+
+      <div class="overflow-x-auto">
+        <table class="min-w-full text-left text-sm border border-gray-200 rounded-xl overflow-hidden">
+          <thead class="bg-red-100 text-red-800 font-semibold">
+            <tr>
+              <th class="px-4 py-3 border-b">Date/Time</th>
+              <th class="px-4 py-3 border-b">User / Email</th>
+              <th class="px-4 py-3 border-b">IP Address</th>
+              <th class="px-4 py-3 border-b">Reason</th>
+              <th class="px-4 py-3 border-b">Attempts</th>
+            </tr>
+          </thead>
+          <tbody>
+            @forelse(($failedLogins ?? []) as $log)
+              <tr class="hover:bg-red-50">
+                <td class="px-4 py-3 border-b">{{ \Carbon\Carbon::parse($log->created_at)->setTimezone(config('app.timezone'))->format('Y-m-d H:i:s') }}</td>
+                <td class="px-4 py-3 border-b">{{ $log->user_identifier ?? 'Unknown User' }}</td>
+                <td class="px-4 py-3 border-b">{{ $log->ip_address ?? 'N/A' }}</td>
+                <td class="px-4 py-3 border-b">{{ ucfirst($log->reason ?? 'failed') }}</td>
+                <td class="px-4 py-3 border-b">{{ $log->attempts ?? 1 }}</td>
+              </tr>
+            @empty
+              <tr>
+                <td colspan="5" class="px-4 py-6 text-center text-gray-500">No failed login attempts found.</td>
+              </tr>
+            @endforelse
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
   <div class="flex items-center justify-between">
-    <div>
-      <h1 class="text-2xl font-semibold">Reports & Logs</h1>
+    <div class="flex items-start space-x-3">
+      <div class="w-12 h-12 rounded-xl bg-gradient-to-r from-indigo-500 to-purple-600 flex items-center justify-center">
+        <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
+        </svg>
+      </div>
+      <div>
+        <h1 class="text-3xl font-bold text-gray-900">Reports & Logs</h1>
+        <p class="text-gray-600">Insights across users, courses, sessions, and security</p>
+      </div>
+    </div>
       @if($filtersApplied)
         <div class="text-sm text-gray-600 mt-1">
           {{-- Selected filters summary: Instructor · Program · Course --}}
@@ -20,75 +93,122 @@
         </div>
       @endif
     </div>
-    <div class="ml-4">
-      <button id="openReportsFilter" onclick="openReportsModal()" class="bg-[#096F4D] text-white px-3 py-1 rounded">Open Filter Modal</button>
+    <div class="ml-4 flex items-center space-x-3">
+      <button id="openReportsFilter" onclick="openReportsModal()" class="px-4 py-2 rounded-xl bg-gradient-to-r from-emerald-500 to-emerald-600 text-white shadow card-hover">Filter</button>
+      <button type="button" class="px-4 py-2 rounded-xl bg-gray-100 text-gray-600 shadow card-hover" title="Export (coming soon)" disabled>Export</button>
     </div>
   </div>
 
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-    <div class="bg-white p-4 rounded shadow">
-      <div class="text-sm text-gray-500">Courses</div>
-      <div class="text-2xl font-bold">{{ $filtersApplied ? $coursesCountFiltered : $coursesCountGlobal }}</div>
+  <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+    <div class="p-6 rounded-2xl bg-gradient-to-br from-indigo-50 to-indigo-100 border border-indigo-200 card-hover">
+      <div class="flex items-center justify-between mb-2">
+        <div class="w-10 h-10 rounded-xl bg-indigo-500 flex items-center justify-center">
+          <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-7 7-4-4"/></svg>
+        </div>
+        <span class="chip chip-blue">Courses</span>
+      </div>
+      <div class="text-3xl font-extrabold text-indigo-900">{{ $filtersApplied ? $coursesCountFiltered : $coursesCountGlobal }}</div>
+      <p class="text-xs text-indigo-700 mt-1">Published, draft, and archived courses included</p>
     </div>
-    <div class="bg-white p-4 rounded shadow">
-      <div class="text-sm text-gray-500">Materials</div>
-      <div class="text-2xl font-bold">{{ $filtersApplied ? $materialsCountFiltered : $materialsCountGlobal }}</div>
+    <div class="p-6 rounded-2xl bg-gradient-to-br from-emerald-50 to-emerald-100 border border-emerald-200 card-hover">
+      <div class="flex items-center justify-between mb-2">
+        <div class="w-10 h-10 rounded-xl bg-emerald-500 flex items-center justify-center">
+          <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/></svg>
+        </div>
+        <span class="chip chip-green">Materials</span>
+      </div>
+      <div class="text-3xl font-extrabold text-emerald-900">{{ $filtersApplied ? $materialsCountFiltered : $materialsCountGlobal }}</div>
+      <p class="text-xs text-emerald-700 mt-1">Files and learning content uploaded</p>
     </div>
-    <div class="bg-white p-4 rounded shadow">
-      <div class="text-sm text-gray-500">Assessments</div>
-      <div class="text-2xl font-bold">{{ $filtersApplied ? $assessmentsCountFiltered : $assessmentsCountGlobal }}</div>
+    <div class="p-6 rounded-2xl bg-gradient-to-br from-amber-50 to-amber-100 border border-amber-200 card-hover">
+      <div class="flex items-center justify-between mb-2">
+        <div class="w-10 h-10 rounded-xl bg-amber-500 flex items-center justify-center">
+          <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5h6M9 9h6m-6 4h6"/></svg>
+        </div>
+        <span class="chip chip-amber">Assessments</span>
+      </div>
+      <div class="text-3xl font-extrabold text-amber-900">{{ $filtersApplied ? $assessmentsCountFiltered : $assessmentsCountGlobal }}</div>
+      <p class="text-xs text-amber-700 mt-1">Quizzes, exams, and assignments created</p>
     </div>
   </div>
 
   <!-- Enrollment & Grades -->
-  <section class="bg-white p-6 rounded shadow mt-6">
-    <h2 class="text-lg font-semibold mb-4">Enrollment & Grade Overview</h2>
-      <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-      <div class="p-4 border rounded">
+  <section class="bg-white p-8 rounded-2xl border border-gray-100 shadow mt-4 card-hover">
+    <div class="flex items-center mb-6">
+      <div class="w-10 h-10 rounded-xl bg-sky-500 flex items-center justify-center mr-3">
+        <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7h18M3 12h18M3 17h18"/></svg>
+      </div>
+      <div>
+        <h2 class="text-xl font-bold text-gray-900">Enrollment & Grade Overview</h2>
+        <p class="text-gray-600 text-sm">Key learning activity indicators</p>
+      </div>
+    </div>
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div class="p-5 rounded-xl border border-gray-200">
         <div class="text-sm text-gray-500">Total Enrollments</div>
         <div class="text-2xl font-bold">{{ $filtersApplied ? $totalEnrollmentsFiltered : $totalEnrollmentsGlobal }}</div>
-        <div class="text-sm text-gray-500">{{ $filtersApplied ? $activeEnrollmentsFiltered : $activeEnrollmentsGlobal }} active</div>
+        <div class="mt-2">
+          <div class="w-full bg-gray-100 rounded-full h-2">
+            @php
+              $active = $filtersApplied ? ($activeEnrollmentsFiltered ?? 0) : ($activeEnrollmentsGlobal ?? 0);
+              $totalE = $filtersApplied ? ($totalEnrollmentsFiltered ?? 0) : ($totalEnrollmentsGlobal ?? 0);
+              $pct = $totalE > 0 ? min(100, round(($active / max(1,$totalE))*100)) : 0;
+            @endphp
+            <div class="bg-emerald-500 h-2 rounded-full" style="width: {{ $pct }}%"></div>
+          </div>
+          <div class="text-xs text-gray-500 mt-1">{{ $active }} active</div>
+        </div>
       </div>
-
-      <div class="p-4 border rounded">
+      <div class="p-5 rounded-xl border border-gray-200">
         <div class="text-sm text-gray-500">Total Submissions</div>
         <div class="text-2xl font-bold">{{ $filtersApplied ? $totalSubmissionsFiltered : $totalSubmissionsGlobal }}</div>
-        <div class="text-sm text-gray-500">Recent: {{ $filtersApplied ? $recentSubmissionsFiltered->count() : '-' }}</div>
+        <div class="text-xs text-gray-500 mt-1">Recent: {{ $filtersApplied ? $recentSubmissionsFiltered->count() : '-' }}</div>
       </div>
-
-      <div class="p-4 border rounded">
+      <div class="p-5 rounded-xl border border-gray-200">
         <div class="text-sm text-gray-500">Average Grade (All)</div>
         <div class="text-2xl font-bold">{{ $filtersApplied ? ($avgGradeOverallFiltered ? number_format($avgGradeOverallFiltered,2) : '-') : ($avgGradeOverallGlobal ? number_format($avgGradeOverallGlobal,2) : '-') }}</div>
-        <div class="text-sm text-gray-500">Top course avg below</div>
+        @php $avg = $filtersApplied ? ($avgGradeOverallFiltered ?? 0) : ($avgGradeOverallGlobal ?? 0); $avgPct = max(0,min(100, round($avg))); @endphp
+        <div class="w-full bg-gray-100 rounded-full h-2 mt-2"><div class="bg-amber-500 h-2 rounded-full" style="width: {{ $avgPct }}%"></div></div>
+        <div class="text-xs text-gray-500 mt-1">Top course avg below</div>
       </div>
     </div>
   </section>
 
-  <section class="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-6">
-    <div class="bg-white p-6 rounded shadow">
-      <h3 class="font-semibold mb-3">Top Courses by Enrollee</h3>
-      <ul class="space-y-2">
+  <section class="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
+    <div class="bg-white p-6 rounded-2xl border border-gray-100 shadow card-hover">
+      <div class="flex items-center justify-between mb-3">
+        <h3 class="font-semibold text-gray-900">Top Courses by Enrollee</h3>
+        <span class="chip chip-blue">Top 3</span>
+      </div>
+      <ul class="space-y-3">
   @foreach(($filtersApplied ? $topCoursesFiltered : $topCoursesGlobal)->slice(0,3) as $c)
-          <li class="flex justify-between items-center border-b pb-2">
-            <div>
-              <div class="font-medium">{{ $c->title }}</div>
-              <div class="text-xs text-gray-500">Course ID: {{ $c->id }}</div>
+          <li class="flex justify-between items-center border-b pb-3">
+            <div class="flex items-center space-x-3">
+              <div class="rank-badge {{ $loop->index===0 ? 'rank-1' : ($loop->index===1 ? 'rank-2' : 'rank-3') }}">{{ $loop->iteration }}</div>
+              <div>
+                <div class="font-medium text-gray-900">{{ $c->title }}</div>
+                <div class="text-xs text-gray-500">Course #{{ $c->id }}</div>
+              </div>
             </div>
-            <div class="text-lg font-bold">{{ $c->students }}</div>
+            <div class="text-lg font-bold text-indigo-700">{{ $c->students }}</div>
           </li>
         @endforeach
       </ul>
     </div>
 
-    <div class="bg-white p-6 rounded shadow">
-      <h3 class="font-semibold mb-3">Top Courses by Avg Grade</h3>
-      <ul class="space-y-2">
+    <div class="bg-white p-6 rounded-2xl border border-gray-100 shadow card-hover">
+      <div class="flex items-center justify-between mb-3">
+        <h3 class="font-semibold text-gray-900">Top Courses by Avg Grade</h3>
+        <span class="chip chip-amber">Top 3</span>
+      </div>
+      <ul class="space-y-3">
   @foreach(($filtersApplied ? $avgGradeByCourseFiltered : $avgGradeByCourseGlobal)->slice(0,3) as $g)
-          <li class="flex justify-between items-center border-b pb-2">
-            <div>
-              <div class="font-medium">{{ $g->title }}</div>
+          <li class="flex justify-between items-center border-b pb-3">
+            <div class="flex items-center space-x-3">
+              <div class="rank-badge {{ $loop->index===0 ? 'rank-1' : ($loop->index===1 ? 'rank-2' : 'rank-3') }}">{{ $loop->iteration }}</div>
+              <div class="font-medium text-gray-900">{{ $g->title }}</div>
             </div>
-            <div class="text-lg font-bold">{{ number_format($g->avg_grade,2) }}</div>
+            <div class="text-lg font-bold text-amber-700">{{ number_format($g->avg_grade,2) }}</div>
           </li>
         @endforeach
       </ul>
@@ -96,9 +216,16 @@
   </section>
 
   <!-- Recent Submissions and Materials -->
-  <section class="grid grid-cols-1 lg:grid-cols-3 gap-4 mt-6">
-        <div class="bg-white p-6 rounded shadow lg:col-span-2">
-      <h3 class="font-semibold mb-3">Recent Submissions</h3>
+  <section class="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-6">
+        <div class="bg-white p-6 rounded-2xl border border-gray-100 shadow lg:col-span-2 card-hover">
+      <div class="flex items-center justify-between mb-3">
+        <h3 class="font-semibold text-gray-900">Recent Submissions</h3>
+        @if($filtersApplied)
+          <span class="chip chip-blue">Filtered</span>
+        @else
+          <span class="chip">Global</span>
+        @endif
+      </div>
       @if($filtersApplied)
       <div id="recentSubmissionsContainer">
         <table class="min-w-full text-left text-sm">
@@ -113,10 +240,10 @@
           <tbody>
             @foreach($recentSubmissionsFiltered as $rs)
               @php $p = intdiv($loop->index, 5); @endphp
-              <tr class="border-t paginated-item" data-page="{{ $p }}">
-                <td class="px-2 py-2">{{ $rs->student }}</td>
+              <tr class="border-t paginated-item hover:bg-gray-50" data-page="{{ $p }}">
+                <td class="px-2 py-2 font-medium text-gray-900">{{ $rs->student }}</td>
                 <td class="px-2 py-2">{{ $rs->assessment }}</td>
-                <td class="px-2 py-2">{{ $rs->score ?? '-' }}</td>
+                <td class="px-2 py-2"><span class="chip chip-green">{{ $rs->score ?? '-' }}</span></td>
                 <td class="px-2 py-2">{{ \Carbon\Carbon::parse($rs->submitted_at)->diffForHumans() }}</td>
               </tr>
             @endforeach
@@ -129,15 +256,22 @@
       @endif
     </div>
 
-      <div class="bg-white p-6 rounded shadow">
-      <h3 class="font-semibold mb-3">Recent Materials</h3>
+      <div class="bg-white p-6 rounded-2xl border border-gray-100 shadow card-hover">
+      <div class="flex items-center justify-between mb-3">
+        <h3 class="font-semibold text-gray-900">Recent Materials</h3>
+        @if($filtersApplied)
+          <span class="chip chip-blue">Filtered</span>
+        @else
+          <span class="chip">Global</span>
+        @endif
+      </div>
       @if($filtersApplied)
       <ul id="recentMaterialsList" class="space-y-2">
         @foreach($recentMaterialsFiltered as $m)
           @php $p = intdiv($loop->index, 5); @endphp
-          <li class="flex justify-between items-center border-b pb-2 paginated-item" data-page="{{ $p }}">
+          <li class="flex justify-between items-center border-b pb-2 paginated-item hover:bg-gray-50" data-page="{{ $p }}">
             <div>
-              <div class="font-medium">{{ $m->material }}</div>
+              <div class="font-medium text-gray-900">{{ $m->material }}</div>
               <div class="text-xs text-gray-500">Course: {{ $m->course }}</div>
             </div>
             <div class="text-xs text-gray-500">{{ \Carbon\Carbon::parse($m->created_at)->diffForHumans() }}</div>
@@ -152,7 +286,7 @@
   </section>
 
   <!-- Topics & Verification -->
-  <section class="bg-white p-6 rounded shadow mt-6">
+  <section class="bg-white p-6 rounded-2xl border border-gray-100 shadow mt-6 card-hover">
     <div class="flex justify-between items-center">
       <div>
         <h3 class="font-semibold">Topics</h3>
@@ -162,15 +296,26 @@
         <h3 class="font-semibold">Email Verification</h3>
         <div class="text-right">
           <div class="text-2xl font-bold">{{ $filtersApplied ? ($verifiedUsersFiltered ?? 0) : $verifiedUsersGlobal }} / {{ $filtersApplied ? ($totalUsersFiltered ?? 0) : $totalUsersGlobal }}</div>
-          <div class="text-sm text-gray-500">Verified users</div>
+          @php
+            $v = $filtersApplied ? ($verifiedUsersFiltered ?? 0) : ($verifiedUsersGlobal ?? 0);
+            $t = $filtersApplied ? ($totalUsersFiltered ?? 0) : ($totalUsersGlobal ?? 0);
+            $vp = $t > 0 ? round(($v/$t)*100) : 0;
+          @endphp
+          <div class="w-48 bg-gray-100 rounded-full h-2 ml-auto mt-2"><div class="bg-indigo-500 h-2 rounded-full" style="width: {{ $vp }}%"></div></div>
+          <div class="text-sm text-gray-500 mt-1">Verified users ({{ $vp }}%)</div>
         </div>
       </div>
     </div>
   </section>
 
-    <div class="bg-white p-6 rounded shadow">
-        <div class="flex items-center justify-between">
-          <h2 class="text-lg font-semibold mb-4">{{ $filtersApplied ? 'Submissions & Average Score (Filtered)' : 'Registrations & Comparisons' }}</h2>
+    <div class="bg-white p-6 rounded-2xl border border-gray-100 shadow card-hover">
+        <div class="flex items-center justify-between mb-2">
+          <div class="flex items-center space-x-2">
+            <div class="w-8 h-8 rounded-lg bg-indigo-500 flex items-center justify-center">
+              <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 3v18m-7-7h14"/></svg>
+            </div>
+            <h2 class="text-lg font-semibold">{{ $filtersApplied ? 'Submissions & Average Score (Filtered)' : 'Registrations & Comparisons' }}</h2>
+          </div>
           <div class="flex items-center space-x-2">
             <select id="chartRange" class="border rounded px-2 py-1 text-sm">
               <option value="7d">Last 7 days</option>
@@ -185,9 +330,9 @@
       <canvas id="registrationsChart" height="120"></canvas>
   </div>
 
-  <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-    <div class="bg-white p-6 rounded shadow">
-      <h3 class="font-semibold mb-3">Account Status by Role</h3>
+  <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+    <div class="bg-white p-6 rounded-2xl border border-gray-100 shadow card-hover">
+      <h3 class="font-semibold mb-3 text-gray-900">Account Status by Role</h3>
       <div class="grid grid-cols-2 gap-4">
         <div>
           <div class="text-sm text-gray-500 mb-2">Accounts marked <strong>Active</strong> ({{ $filtersApplied ? 'Filtered' : 'Global' }})</div>
@@ -240,9 +385,9 @@
       </div>
     </div>
 
-    <div class="bg-white p-6 rounded shadow">
-      <h3 class="font-semibold mb-3">Recent Sessions</h3>
-      <div class="text-sm text-gray-500 mb-2">Last session entries ({{ $filtersApplied ? 'Filtered' : 'Global' }})</div>
+    <div class="bg-white p-6 rounded-2xl border border-gray-100 shadow card-hover">
+      <h3 class="font-semibold mb-1 text-gray-900">Recent Sessions</h3>
+      <div class="text-sm text-gray-500 mb-3">Last session entries ({{ $filtersApplied ? 'Filtered' : 'Global' }})</div>
       <div class="overflow-auto max-h-56">
         <table class="min-w-full text-left text-sm">
           <thead class="text-gray-500 text-xs uppercase">
@@ -257,10 +402,15 @@
               $recentToShow = $filtersApplied ? $recentSessions : $recentSessionsDefault;
             @endphp
             @foreach($recentToShow as $s)
-              <tr class="border-t">
+              <tr class="border-t hover:bg-gray-50">
                 <td class="px-2 py-2">{{ $s->user_id }} @if(isset($s->name)) - {{ $s->name }} @endif</td>
-                <td class="px-2 py-2">{{ $s->ip_address }}</td>
-                <td class="px-2 py-2">{{ \Carbon\Carbon::createFromTimestamp($s->last_activity)->setTimezone('Asia/Manila')->toDateTimeString() ?? '-' }}</td>
+                <td class="px-2 py-2">
+                  <span>{{ $s->ip_address }}</span>
+                  @if(!empty($s->ip_address))
+                    <button type="button" class="ml-2 text-xs text-indigo-600 underline" onclick="navigator.clipboard && navigator.clipboard.writeText('{{ $s->ip_address }}')">Copy</button>
+                  @endif
+                </td>
+                <td class="px-2 py-2">{{ \Carbon\Carbon::createFromTimestamp($s->last_activity)->setTimezone(config('app.timezone'))->toDateTimeString() ?? '-' }}</td>
               </tr>
             @endforeach
           </tbody>

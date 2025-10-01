@@ -21,7 +21,7 @@
         @endif
 
         {{-- Debug Information for School --}}
-        @if(config('app.debug') && $authUser && $authUser->isSuperAdmin())
+        <!-- @if(config('app.debug') && $authUser && $authUser->isSuperAdmin())
             <div class="mb-6 p-4 bg-yellow-50 border border-yellow-200 text-gray-700 rounded-lg">
                 <details>
                     <summary class="font-semibold cursor-pointer">Debug Information (Super Admin Only)</summary>
@@ -33,7 +33,7 @@
                     </div>
                 </details>
             </div>
-        @endif
+        @endif -->
 
         @if($errors->any())
             <div class="mb-6 p-4 bg-red-100 border border-red-400 text-red-700 rounded-lg">
