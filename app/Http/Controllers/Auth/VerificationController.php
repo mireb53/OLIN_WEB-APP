@@ -32,6 +32,16 @@ class VerificationController extends Controller
                 'email_verification_code_expires_at' => null,
             ])->save();
 
+            // Update last login timestamp now that verification is successful
+            $user->update(['last_login_at' => now()]);
+
+            // Redirect based on role
+            if ($user->role === 'admin' || $user->role === 'super_admin' || $user->role === 'school_admin') {
+                return redirect()->intended('/admin/dashboard')->with('status', 'Your email has been verified!');
+            } elseif ($user->role === 'instructor') {
+                return redirect()->intended('/instructor/dashboard')->with('status', 'Your email has been verified!');
+            }
+
             return redirect('/dashboard')->with('status', 'Your email has been verified!');
         }
 

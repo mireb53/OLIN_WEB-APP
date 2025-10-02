@@ -29,6 +29,26 @@
                 : ((method_exists($admin, 'isSchoolAdmin') && $admin->isSchoolAdmin())
                     ? 'SchoolAdmin - Single-School Access'
                     : ucfirst(str_replace('_',' ', $admin->role ?? 'admin')));
+
+            // Resolve current school display text
+            $currentSchoolText = 'No school selected';
+            if (method_exists($admin, 'isSuperAdmin') && $admin->isSuperAdmin()) {
+                $activeId = session('active_school');
+                if ($activeId) {
+                    $sch = \App\Models\School::find($activeId);
+                    if ($sch) {
+                        $currentSchoolText = $sch->name;
+                    } else {
+                        $currentSchoolText = 'Unknown School (ID: '.$activeId.')';
+                    }
+                }
+            } elseif (method_exists($admin, 'isSchoolAdmin') && $admin->isSchoolAdmin()) {
+                $sid = $admin->school_id ?? null;
+                if ($sid) {
+                    $sch = \App\Models\School::find($sid);
+                    if ($sch) $currentSchoolText = $sch->name;
+                }
+            }
         @endphp
 
         @if ($errors->any())
@@ -95,7 +115,7 @@
                 <div class="form-group">
                     <label for="current_school">Current School:</label>
                     <input type="text" id="current_school" 
-                        value="{{ session('school_name', 'No school selected') }}" 
+                        value="{{ $currentSchoolText }}" 
                         disabled>
                 </div>
                 @endif

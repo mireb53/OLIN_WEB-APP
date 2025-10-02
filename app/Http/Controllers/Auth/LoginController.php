@@ -5,6 +5,8 @@ namespace App\Http\Controllers\Auth;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth; 
+use App\Notifications\VerifyEmailWithCode;
+use Carbon\Carbon;
 
 class LoginController extends Controller
 {
@@ -30,17 +32,33 @@ class LoginController extends Controller
 
             $user = Auth::user(); // Get the currently logged-in user
 
-            // Update last login timestamp
+            // If email is not verified, generate/send a 6-digit verification code and redirect
+            if (method_exists($user, 'hasVerifiedEmail') && !$user->hasVerifiedEmail()) {
+                $verificationCode = random_int(100000, 999999);
+                $expiresAt = Carbon::now()->addMinutes(config('auth.verification.expire', 60));
+
+                $user->forceFill([
+                    'email_verification_code' => $verificationCode,
+                    'email_verification_code_expires_at' => $expiresAt,
+                ])->save();
+
+                // Notify via email
+                $user->notify(new VerifyEmailWithCode($verificationCode));
+
+                return redirect()->route('verification.notice')
+                    ->with('status', 'We sent a verification code to your email. Please enter it to continue.');
+            }
+
+            // Email already verified: update last login and proceed
             $user->update(['last_login_at' => now()]);
 
-            if ($user->role === 'admin') {
+            if (in_array($user->role, ['admin','super_admin','school_admin'])) {
                 return redirect()->intended('/admin/dashboard'); 
             } elseif ($user->role === 'instructor') {
                 return redirect()->intended('/instructor/dashboard'); 
-            } else {
-                // Default redirect for other roles (e.g., 'student' if you had one)
-                return redirect()->intended('/dashboard'); // Generic user dashboard
             }
+            // Default redirect for other roles (e.g., 'student')
+            return redirect()->intended('/dashboard'); // Generic user dashboard
         }
 
         // If authentication fails, redirect back with an error message

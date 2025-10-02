@@ -33,9 +33,15 @@ Route::get('/login', [LoginController::class, 'showLoginForm'])->name('login');
 
 Route::post('/login', [LoginController::class, 'login']);
 
-Route::get('/instructor/register', [RegisterController::class, 'showInstructorRegistrationForm'])->name('instructor.register.get');
+// Public registration disabled: only admins can create users
+Route::get('/instructor/register', function () {
+    return redirect()->route('login')->with('error', 'Public registration is disabled. Please contact your administrator.');
+})->name('instructor.register.get');
 
-Route::post('/instructor/register', [RegisterController::class, 'registerInstructor'])->name('instructor.register.post');
+// Keep route name but block public access unless protected elsewhere (e.g., admin panel)
+Route::post('/instructor/register', function () {
+    abort(403, 'Public registration is disabled.');
+})->name('instructor.register.post');
 
 Route::get('/auth/google/redirect', [SocialLoginController::class, 'redirectToGoogle'])->name('socialite.google.redirect');
 Route::get('/auth/google/callback', [SocialLoginController::class, 'handleGoogleCallback']);
@@ -165,6 +171,11 @@ Route::middleware(['auth:web', 'role:super_admin,school_admin', 'verified'])->gr
     Route::get('/admin/courses/{course}/edit', [CourseManagementController::class, 'edit'])->name('admin.courses.edit');
     Route::put('/admin/courses/{course}', [CourseManagementController::class, 'update'])->name('admin.courses.update');
     Route::delete('/admin/courses/{course}', [CourseManagementController::class, 'destroy'])->name('admin.courses.destroy');
+
+    // Export/Import routes
+    Route::get('/admin/course-management/export', [CourseManagementController::class, 'export'])->name('admin.courseManagement.export');
+    Route::get('/admin/course-management/export-excel', [CourseManagementController::class, 'exportExcel'])->name('admin.courseManagement.exportExcel');
+    Route::post('/admin/course-management/import', [CourseManagementController::class, 'import'])->name('admin.courseManagement.import');
 
     // More legacy aliases mapped to the same controller actions
     Route::get('/admin/course-management/{course}', [CourseManagementController::class, 'show'])->name('admin.courseManagement.show');

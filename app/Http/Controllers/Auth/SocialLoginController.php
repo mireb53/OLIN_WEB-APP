@@ -10,6 +10,8 @@ use Laravel\Socialite\Facades\Socialite;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str; // <--- ADD THIS LINE
+use App\Notifications\VerifyEmailWithCode;
+use Carbon\Carbon;
 
 class SocialLoginController extends Controller
 {
@@ -49,30 +51,31 @@ class SocialLoginController extends Controller
                     Log::info('Google account linked to existing user: ' . $user->email);
                 }
                 
-                // Update last login timestamp
-                $user->update(['last_login_at' => now()]);
-                
-                Auth::login($user, true); // Log in the user, "true" for remember me
+                // Log the user in
+                Auth::login($user, true);
                 Log::info('User logged in via Google: ' . $user->email);
 
+                // If not verified, send OTP and redirect to verification page
+                if (method_exists($user, 'hasVerifiedEmail') && !$user->hasVerifiedEmail()) {
+                    $verificationCode = random_int(100000, 999999);
+                    $expiresAt = Carbon::now()->addMinutes(config('auth.verification.expire', 60));
+                    $user->forceFill([
+                        'email_verification_code' => $verificationCode,
+                        'email_verification_code_expires_at' => $expiresAt,
+                    ])->save();
+                    $user->notify(new VerifyEmailWithCode($verificationCode));
+                    return redirect()->route('verification.notice')
+                        ->with('status', 'We sent a verification code to your email. Please enter it to continue.');
+                }
+
             } else {
-                // New user - create a new account
-                $user = User::create([
-                    'name' => $googleUser->name,
-                    'email' => $googleUser->email,
-                    'google_id' => $googleUser->id,
-                    'password' => Hash::make(Str::random(24)), // Generate a random password for social users
-                    'role' => 'instructor', // Default role for new social sign-ups
-                    'email_verified_at' => now(), // Assume email is verified by Google
-                    'status' => 'active', // Set default status for new users
-                    'last_login_at' => now(), // Set login timestamp
-                ]);
-                Auth::login($user, true);
-                Log::info('New user registered and logged in via Google: ' . $user->email);
+                // Public self-registration is disabled. Block creating new users via Google.
+                Log::warning('Google login attempted for non-existing user when registration is disabled: ' . $googleUser->email);
+                return redirect('/login')->with('error', 'Your account is not registered. Please contact your administrator.');
             }
 
             // Redirect to the intended dashboard after login/registration
-            if ($user->role === 'admin') {
+            if ($user->role === 'admin' || $user->role === 'super_admin' || $user->role === 'school_admin') {
                 return redirect()->intended('/admin/dashboard');
             } elseif ($user->role === 'instructor') {
                 return redirect()->intended('/instructor/dashboard');

@@ -67,7 +67,7 @@
             </div>
 
             <!-- All Courses Header -->
-            <div class="mb-4">
+            <div class="mb-4 flex items-center justify-between gap-4 flex-wrap">
                 <h2 class="text-2xl font-bold text-slate-800 flex items-center gap-3">
                     <div class="w-1 h-8 bg-gradient-to-b from-indigo-600 to-purple-600 rounded-full"></div>
                     All Courses
@@ -77,6 +77,12 @@
                         @endif
                     </span>
                 </h2>
+                <div class="flex items-center gap-2">
+                    <button type="button" onclick="openExportImportModal()" class="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-white border border-slate-200 shadow-sm text-sm font-medium text-slate-700 hover:bg-slate-50 hover:border-slate-300 transition">
+                        <svg class="w-4 h-4 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+                        Export / Import
+                    </button>
+                </div>
             </div>
 
             <!-- Courses Table Card -->
@@ -147,6 +153,7 @@
             {{-- show-modal removed; direct navigation to details page now --}}
             @include('admin.courses.edit-modal')
             @include('admin.courses.create-modal')
+            @include('admin.courses.export-import-modal')
 
             {{-- keep delete modal here for simplicity --}}
             <div id="deleteModal" class="fixed inset-0 bg-black bg-opacity-50 hidden z-50 flex items-center justify-center">

@@ -443,15 +443,7 @@ class UserManagementController extends Controller
         request()->validate([
             // Require typed confirmation (either the literal word DELETE or the user's email)
             'confirm' => 'required|string',
-            'admin_password' => 'required|string',
         ]);
-
-        // Verify admin password
-        $actor = Auth::user();
-        if (!$actor || !Hash::check(request('admin_password'), $actor->getAuthPassword())) {
-            return redirect()->route('admin.users.index')
-                ->with('error', 'Admin password verification failed.');
-        }
 
         $confirm = trim((string) request('confirm'));
         if (!($confirm === 'DELETE' || strcasecmp($confirm, $user->email) === 0)) {

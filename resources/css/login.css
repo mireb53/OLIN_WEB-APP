@@ -1,0 +1,277 @@
+/* @tailwind base;
+@tailwind components;
+@tailwind utilities; */
+
+/* Login and Registration Page Styles */
+    /* Reset */
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: "Segoe UI", Roboto, sans-serif;
+      background: #F9FAFB;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+
+    .container {
+      display: flex;
+      width: 100%;
+      max-width: 1000px;
+      border-radius: 16px;
+      background: #fff;
+      box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15);
+      overflow: hidden;
+    }
+
+    /* Left section */
+    .left-section {
+      flex: 1;
+      background: #fff;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 40px 30px;
+      text-align: center;
+    }
+
+    .logo img {
+  max-width: 200px;
+  width: 100%;
+  height: auto;
+  margin-bottom: 16px;
+}
+
+
+  .tagline {
+  font-size: 20px;
+  font-weight: 500;
+  color: #555;
+  margin-bottom: 24px;
+}
+
+
+  .illustration-container img {
+  max-width: 100%;
+  max-height: 300px;
+  object-fit: contain;
+  display: block;
+  margin: 0 auto;
+}
+
+
+    /* Right section */
+    .right-section {
+      flex: 1;
+      padding: 50px 40px;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+    }
+
+    .form-container {
+      width: 100%;
+      max-width: 360px;
+      margin: 0 auto;
+    }
+
+    .welcome-title {
+      font-size: 28px;
+      font-weight: bold;
+      color: #202124;
+      margin-bottom: 8px;
+    }
+
+    .welcome-subtitle {
+      font-size: 14px;
+      color: #555;
+      margin-bottom: 24px;
+    }
+
+    .form-group {
+      margin-bottom: 18px;
+    }
+
+    .form-group input {
+      width: 100%;
+      padding: 12px 14px;
+      border: 1px solid #ccc;
+      border-radius: 8px;
+      font-size: 14px;
+      transition: border 0.2s;
+    }
+
+    .form-group input:focus {
+      border-color: #1a73e8;
+      outline: none;
+      box-shadow: 0 0 0 2px rgba(26,115,232,0.15);
+    }
+
+    .forgot-password {
+      font-size: 13px;
+      color: #1a73e8;
+      text-decoration: none;
+      display: inline-block;
+      margin-bottom: 18px;
+    }
+
+    .forgot-password:hover {
+      text-decoration: underline;
+    }
+  
+    .password-group {
+    position: relative;
+}
+
+.password-group {
+    position: relative; /* para yung toggle button ay relative sa container */
+    display: flex;
+    align-items: center;
+}
+
+.password-group input {
+    width: 100%;
+    padding-right: 40px; /* space para di tatama yung 👁 button */
+    box-sizing: border-box;
+}
+
+.password-toggle {
+    position: absolute;
+    top: 50%;
+    right: 10px;
+    transform: translateY(-50%);
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 1.2rem;
+    color: #666;
+}
+.password-toggle:hover {
+    color: #111;
+}
+
+.separator {
+    display: flex;
+    align-items: center;
+    text-align: center;
+    margin: 1rem 0; /* spacing above/below */
+}
+
+.separator::before,
+.separator::after {
+    content: '';
+    flex: 1;
+    border-bottom: 1px solid #ccc; /* line color */
+}
+
+.separator::before {
+    margin-right: 0.5rem;
+}
+
+.separator::after {
+    margin-left: 0.5rem;
+}
+
+.separator span {
+    font-size: 0.9rem;
+    color: #666;
+}
+
+    .btn {
+      width: 100%;
+      border: none;
+      padding: 12px;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      margin-bottom: 18px;
+      transition: background 0.2s;
+    }
+
+    .login-btn {
+      background: #1a73e8;
+      color: #fff;
+    }
+    .login-btn:hover {
+      background: #1557b0;
+    }
+
+    .signup-btn {
+      background: #34a853;
+      color: #fff;
+    }
+    .signup-btn:hover {
+      background: #2d8a47;
+    }
+
+    .google-login {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border: 1px solid #ccc;
+      background: #fff;
+      color: #444;
+    }
+
+    .google-login img {
+      width: 18px;
+      margin-right: 8px;
+    }
+
+    .signup-link {
+      text-align: center;
+      font-size: 14px;
+      color: #555;
+    }
+
+    .signup-link a {
+      color: #1a73e8;
+      text-decoration: none;
+    }
+
+    .signup-link a:hover {
+      text-decoration: underline;
+    }
+
+   .checkbox-group {
+  display: flex;
+  align-items: center; /* center vertically */
+  gap: 8px;
+  margin-bottom: 18px;
+  font-size: 13px;
+  color: #555;
+}
+
+
+    .hidden { display: none; }
+
+    @media (max-width: 768px) {
+      .container {
+        flex-direction: column;
+      }
+      .left-section, .right-section {
+        padding: 30px 20px;
+      }
+
+      .logo img {
+    max-width: 150px;
+    margin-bottom: 12px;
+  }
+  .tagline {
+    font-size: 16px;
+    margin-bottom: 16px;
+  }
+  .illustration-container img {
+    max-height: 200px;
+  }
+
+    }
+ 

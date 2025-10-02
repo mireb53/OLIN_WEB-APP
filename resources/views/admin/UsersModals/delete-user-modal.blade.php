@@ -11,10 +11,6 @@
                 <label class="block text-sm font-medium text-gray-700">Confirm</label>
                 <input type="text" name="confirm" id="deleteConfirmInput" class="border border-gray-300 rounded-lg px-3 py-2 w-full" placeholder="Type DELETE or email" required>
             </div>
-            <div class="mb-4">
-                <label class="block text-sm font-medium text-gray-700">Your Admin Password</label>
-                <input type="password" name="admin_password" class="border border-gray-300 rounded-lg px-3 py-2 w-full" required>
-            </div>
             <div class="flex justify-end space-x-2">
                 <button type="button" class="px-4 py-2 bg-gray-300 rounded-lg" data-modal-close>Cancel</button>
                 <button type="submit" class="px-4 py-2 bg-red-600 text-white rounded-lg">Delete</button>

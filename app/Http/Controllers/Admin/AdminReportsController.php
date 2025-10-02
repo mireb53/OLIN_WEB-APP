@@ -5,6 +5,8 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Session;
 use Carbon\Carbon;
 
 class AdminReportsController extends Controller
@@ -14,6 +16,7 @@ class AdminReportsController extends Controller
      */
     public function index(Request $request)
     {
+        $activeSchoolId = $this->getActiveSchoolId();
         // allow selecting by instructor id and course id from modal
         $instructorId = $request->input('instructor_id');
         $courseFilterId = $request->input('course_id');
@@ -60,6 +63,14 @@ class AdminReportsController extends Controller
         // Users registered in range grouped by day
         // Build course filter set based on course/program/instructor filters
         $courseQuery = DB::table('courses');
+        if ($activeSchoolId) {
+            $courseQuery->whereExists(function($q) use ($activeSchoolId) {
+                $q->select(DB::raw(1))
+                  ->from('users as inst')
+                  ->whereColumn('inst.id', 'courses.instructor_id')
+                  ->where('inst.school_id', $activeSchoolId);
+            });
+        }
         if ($programFilter) {
             $courseQuery->where('program_id', $programFilter);
         }
@@ -105,6 +116,9 @@ class AdminReportsController extends Controller
 
         // Base user query for registrations accounting for filters
         $usersBase = DB::table('users');
+        if ($activeSchoolId) {
+            $usersBase->where('school_id', $activeSchoolId);
+        }
         if (count($studentIds) > 0) {
             $usersBase->whereIn('id', $studentIds);
         } else {
@@ -125,6 +139,9 @@ class AdminReportsController extends Controller
 
         // Account-active users based on status column (accounts marked active)
         $accountActiveUsersQuery = DB::table('users')->where('status', 'active');
+        if ($activeSchoolId) {
+            $accountActiveUsersQuery->where('school_id', $activeSchoolId);
+        }
         if (count($studentIds) > 0) {
             $accountActiveUsersQuery->whereIn('id', $studentIds);
         } else {
@@ -195,6 +212,7 @@ class AdminReportsController extends Controller
             // Query users that are both in sessions and allowed by filters
             $onlineUsers = DB::table('users')
                 ->whereIn('id', $effectiveOnlineIds)
+                ->when($activeSchoolId, function($q) use ($activeSchoolId){ $q->where('school_id', $activeSchoolId); })
                 ->select('role', DB::raw('count(*) as total'))
                 ->groupBy('role')
                 ->get();
@@ -203,6 +221,7 @@ class AdminReportsController extends Controller
             if (count($allowedOnlineIds) === 0) {
                 $onlineUsersQuery = DB::table('users');
                 if (count($sessionUserIds) > 0) $onlineUsersQuery->whereIn('id', $sessionUserIds);
+                if ($activeSchoolId) $onlineUsersQuery->where('school_id', $activeSchoolId);
                 if ($department) $onlineUsersQuery->where('department', $department);
                 if ($programFilter) $onlineUsersQuery->where('program_id', $programFilter);
                 $onlineUsers = $onlineUsersQuery->select('role', DB::raw('count(*) as total'))->groupBy('role')->get();
@@ -262,19 +281,31 @@ class AdminReportsController extends Controller
         $recentUserIds = array_values(array_unique($recentUserIds));
         $recentUsers = [];
         if (count($recentUserIds) > 0) {
-            $users = DB::table('users')->whereIn('id', $recentUserIds)->select('id','name')->get();
+            $users = DB::table('users')->when($activeSchoolId, function($q) use ($activeSchoolId){ $q->where('school_id', $activeSchoolId); })
+                ->whereIn('id', $recentUserIds)->select('id','name')->get();
             foreach ($users as $u) $recentUsers[$u->id] = $u->name;
         }
         // attach name where available
+        $filteredRecent = [];
         foreach ($recentSessions as $k => $rs) {
-            $recentSessions[$k]->name = $recentUsers[$rs->user_id] ?? null;
+            $rs->name = $recentUsers[$rs->user_id] ?? null;
+            // If school is active, only keep sessions with user ids in that school
+            if ($activeSchoolId) {
+                if (!empty($rs->user_id) && isset($recentUsers[$rs->user_id])) {
+                    $filteredRecent[] = $rs;
+                }
+            } else {
+                $filteredRecent[] = $rs;
+            }
         }
+        $recentSessions = $filteredRecent;
 
         // --- DEFAULT, unfiltered datasets (should NOT change when filters applied) ---
         // Account status by role (global, unfiltered)
         $accountActiveUsersDefault = DB::table('users')
             ->select('role', DB::raw('count(*) as total'))
             ->where('status', 'active')
+            ->when($activeSchoolId, function($q) use ($activeSchoolId){ $q->where('school_id', $activeSchoolId); })
             ->groupBy('role')
             ->get();
 
@@ -292,15 +323,16 @@ class AdminReportsController extends Controller
         }
         $sessionUserIdsDef = array_values(array_unique(array_filter($sessionUserIdsDef)));
         $onlineUsersDefault = collect();
-        if (count($sessionUserIdsDef) > 0) {
+    if (count($sessionUserIdsDef) > 0) {
             $onlineUsersDefault = DB::table('users')
                 ->whereIn('id', $sessionUserIdsDef)
+        ->when($activeSchoolId, function($q) use ($activeSchoolId){ $q->where('school_id', $activeSchoolId); })
                 ->select('role', DB::raw('count(*) as total'))
                 ->groupBy('role')
                 ->get();
         }
 
-        // Recent sessions default (global, unfiltered) - build with resolved names
+        // Recent sessions default (scoped to active school when set) - build with resolved names
         $recentSessionRowsDef = DB::table('sessions')
             ->select('id','user_id','payload','ip_address','last_activity')
             ->orderBy('last_activity', 'desc')
@@ -318,28 +350,57 @@ class AdminReportsController extends Controller
                 if (!$found && preg_match('/"id"\s*:\s*(\d+)/', $payload, $m3)) $found = (int)$m3[1];
                 $uid = $found;
             }
-            $recentSessionsDefault[] = (object)[
-                'user_id' => $uid,
-                'ip_address' => $rsd->ip_address,
-                'last_activity' => $rsd->last_activity,
-            ];
-            if ($uid) $recentUserIdsDef[] = $uid;
+            // keep only sessions for users in active school when set
+            if ($activeSchoolId) {
+                if ($uid) $recentUserIdsDef[] = $uid;
+                // we'll filter by user set after fetching names
+                $recentSessionsDefault[] = (object)[
+                    'user_id' => $uid,
+                    'ip_address' => $rsd->ip_address,
+                    'last_activity' => $rsd->last_activity,
+                ];
+            } else {
+                $recentSessionsDefault[] = (object)[
+                    'user_id' => $uid,
+                    'ip_address' => $rsd->ip_address,
+                    'last_activity' => $rsd->last_activity,
+                ];
+                if ($uid) $recentUserIdsDef[] = $uid;
+            }
         }
         $recentUserIdsDef = array_values(array_unique($recentUserIdsDef));
         $recentUsersDef = [];
         if (count($recentUserIdsDef) > 0) {
-            $usersDef = DB::table('users')->whereIn('id', $recentUserIdsDef)->select('id','name')->get();
+            $usersDef = DB::table('users')
+                ->when($activeSchoolId, function($q) use ($activeSchoolId){ $q->where('school_id', $activeSchoolId); })
+                ->whereIn('id', $recentUserIdsDef)
+                ->select('id','name')
+                ->get();
             foreach ($usersDef as $u) $recentUsersDef[$u->id] = $u->name;
         }
+        // attach names and drop sessions for users outside active school if needed
+        $rsdFiltered = [];
         foreach ($recentSessionsDefault as $k => $rs) {
-            $recentSessionsDefault[$k]->name = $recentUsersDef[$rs->user_id] ?? null;
+            $rs->name = $recentUsersDef[$rs->user_id] ?? null;
+            if ($activeSchoolId) {
+                if (!empty($rs->user_id) && isset($recentUsersDef[$rs->user_id])) {
+                    $rsdFiltered[] = $rs;
+                }
+            } else {
+                $rsdFiltered[] = $rs;
+            }
         }
+        $recentSessionsDefault = $rsdFiltered;
 
         // Programs and departments for filter dropdowns
         $programs = DB::table('programs')->select('id', 'name')->orderBy('name')->get();
-        $departments = DB::table('users')->whereNotNull('department')->distinct()->pluck('department');
+        $departments = DB::table('users')
+            ->whereNotNull('department')
+            ->when($activeSchoolId, function($q) use ($activeSchoolId){ $q->where('school_id', $activeSchoolId); })
+            ->distinct()
+            ->pluck('department');
 
-    // DEFAULT CHART (unfiltered) - last 30 days
+    // DEFAULT CHART (unfiltered by modal filters but scoped to active school) - last 30 days
         $chartEnd = Carbon::now();
         $chartStart = $chartEnd->copy()->subDays(29)->startOfDay();
         $chartLabels = [];
@@ -353,42 +414,119 @@ class AdminReportsController extends Controller
             $chartLabels[] = $cur->toDateString();
 
             // registrations on that day
-            $chartRegistrations[] = (int) DB::table('users')->whereDate('created_at', $cur->toDateString())->count();
+            $regQ = DB::table('users')->whereDate('created_at', $cur->toDateString());
+            if ($activeSchoolId) $regQ->where('school_id', $activeSchoolId);
+            $chartRegistrations[] = (int) $regQ->count();
 
             // active accounts created on that day
-            $chartActiveAccounts[] = (int) DB::table('users')->where('status', 'active')->whereDate('created_at', $cur->toDateString())->count();
+            $aaQ = DB::table('users')->where('status', 'active')->whereDate('created_at', $cur->toDateString());
+            if ($activeSchoolId) $aaQ->where('school_id', $activeSchoolId);
+            $chartActiveAccounts[] = (int) $aaQ->count();
 
-            // online users on that day via sessions
-            $chartOnline[] = (int) DB::table('sessions')
+            // online users on that day via sessions (intersect with active school users when set)
+            $sessionRowsDay = DB::table('sessions')
                 ->whereRaw('DATE(FROM_UNIXTIME(last_activity)) = ?', [$cur->toDateString()])
-                ->distinct('user_id')
-                ->count('user_id');
+                ->get();
+            $sessionIdsDay = [];
+            foreach ($sessionRowsDay as $sr) {
+                if (!empty($sr->user_id)) $sessionIdsDay[] = (int)$sr->user_id;
+                else {
+                    $payload = $sr->payload ?? '';
+                    if (preg_match('/user_id";i:(\d+);/i', $payload, $m)) $sessionIdsDay[] = (int)$m[1];
+                    elseif (preg_match('/"id";i:(\d+);/i', $payload, $m2)) $sessionIdsDay[] = (int)$m2[1];
+                    elseif (preg_match('/"id"\s*:\s*(\d+)/', $payload, $m3)) $sessionIdsDay[] = (int)$m3[1];
+                }
+            }
+            $sessionIdsDay = array_values(array_unique(array_filter($sessionIdsDay)));
+            if ($activeSchoolId && count($sessionIdsDay) > 0) {
+                $schoolUserIds = DB::table('users')->where('school_id', $activeSchoolId)->whereIn('id', $sessionIdsDay)->pluck('id')->toArray();
+                $sessionIdsDay = array_values(array_intersect($sessionIdsDay, $schoolUserIds));
+            }
+            $chartOnline[] = count($sessionIdsDay);
 
             // courses created on that day
-            $chartCoursesCreated[] = (int) DB::table('courses')->whereDate('created_at', $cur->toDateString())->count();
+            $ccQ = DB::table('courses')->whereDate('created_at', $cur->toDateString());
+            if ($activeSchoolId) {
+                $ccQ->whereExists(function($q) use ($activeSchoolId) {
+                    $q->select(DB::raw(1))
+                      ->from('users as inst')
+                      ->whereColumn('inst.id', 'courses.instructor_id')
+                      ->where('inst.school_id', $activeSchoolId);
+                });
+            }
+            $chartCoursesCreated[] = (int) $ccQ->count();
 
             $cur->addDay();
         }
 
-        // --- GLOBAL (unfiltered) counts ---
-        $coursesCountGlobal = DB::table('courses')->count();
-        $materialsCountGlobal = DB::table('materials')->count();
-        $assessmentsCountGlobal = DB::table('assessments')->count();
+        // --- GLOBAL (unfiltered by modal filters) counts, but scoped to active school when set ---
+        $coursesCountGlobal = DB::table('courses')
+            ->when($activeSchoolId, function($q) use ($activeSchoolId) {
+                $q->whereExists(function($sq) use ($activeSchoolId) {
+                    $sq->select(DB::raw(1))
+                       ->from('users as inst')
+                       ->whereColumn('inst.id', 'courses.instructor_id')
+                       ->where('inst.school_id', $activeSchoolId);
+                });
+            })
+            ->count();
+        $materialsCountGlobal = DB::table('materials')
+            ->when($activeSchoolId, function($q) use ($activeSchoolId) {
+                $q->join('courses as mc', 'materials.course_id', '=', 'mc.id')
+                  ->join('users as mi', 'mc.instructor_id', '=', 'mi.id')
+                  ->where('mi.school_id', $activeSchoolId);
+            })
+            ->count();
+        $assessmentsCountGlobal = DB::table('assessments')
+            ->when($activeSchoolId, function($q) use ($activeSchoolId) {
+                $q->join('courses as ac', 'assessments.course_id', '=', 'ac.id')
+                  ->join('users as ai', 'ac.instructor_id', '=', 'ai.id')
+                  ->where('ai.school_id', $activeSchoolId);
+            })
+            ->count();
 
-        $totalEnrollmentsGlobal = DB::table('enrollments')->count();
-        $activeEnrollmentsGlobal = DB::table('enrollments')->where('status', 'active')->count();
+        $totalEnrollmentsGlobal = DB::table('enrollments')
+            ->when($activeSchoolId, function($q) use ($activeSchoolId) {
+                $q->join('courses as ec', 'enrollments.course_id', '=', 'ec.id')
+                  ->join('users as ei', 'ec.instructor_id', '=', 'ei.id')
+                  ->where('ei.school_id', $activeSchoolId);
+            })
+            ->count();
+        $activeEnrollmentsGlobal = DB::table('enrollments')
+            ->when($activeSchoolId, function($q) use ($activeSchoolId) {
+                $q->join('courses as ec2', 'enrollments.course_id', '=', 'ec2.id')
+                  ->join('users as ei2', 'ec2.instructor_id', '=', 'ei2.id')
+                  ->where('ei2.school_id', $activeSchoolId);
+            })
+            ->where('enrollments.status', 'active')
+            ->count();
 
         $topCoursesGlobal = DB::table('enrollments')
             ->join('courses', 'enrollments.course_id', '=', 'courses.id')
+            ->when($activeSchoolId, function($q) use ($activeSchoolId) {
+                $q->join('users as ti', 'courses.instructor_id', '=', 'ti.id')
+                  ->where('ti.school_id', $activeSchoolId);
+            })
             ->select('courses.id', 'courses.title', DB::raw('count(enrollments.student_id) as students'))
             ->groupBy('courses.id', 'courses.title')
             ->orderByDesc('students')
             ->limit(3)
             ->get();
 
-        $avgGradeOverallGlobal = DB::table('enrollments')->whereNotNull('grade')->avg('grade');
+        $avgGradeOverallGlobal = DB::table('enrollments')
+            ->when($activeSchoolId, function($q) use ($activeSchoolId) {
+                $q->join('courses as gc', 'enrollments.course_id', '=', 'gc.id')
+                  ->join('users as gi', 'gc.instructor_id', '=', 'gi.id')
+                  ->where('gi.school_id', $activeSchoolId);
+            })
+            ->whereNotNull('grade')
+            ->avg('grade');
         $avgGradeByCourseGlobal = DB::table('enrollments')
             ->join('courses', 'enrollments.course_id', '=', 'courses.id')
+            ->when($activeSchoolId, function($q) use ($activeSchoolId) {
+                $q->join('users as gci', 'courses.instructor_id', '=', 'gci.id')
+                  ->where('gci.school_id', $activeSchoolId);
+            })
             ->whereNotNull('enrollments.grade')
             ->select('courses.id', 'courses.title', DB::raw('avg(enrollments.grade) as avg_grade'))
             ->groupBy('courses.id', 'courses.title')
@@ -396,14 +534,31 @@ class AdminReportsController extends Controller
             ->limit(3)
             ->get();
 
-        $totalSubmissionsGlobal = DB::table('submitted_assessments')->count();
+        $totalSubmissionsGlobal = DB::table('submitted_assessments')
+            ->when($activeSchoolId, function($q) use ($activeSchoolId) {
+                $q->join('users as su', 'submitted_assessments.student_id', '=', 'su.id')
+                  ->where('su.school_id', $activeSchoolId);
+            })
+            ->count();
 
-        $topicsCountGlobal = DB::table('topics')->count();
+        $topicsCountGlobal = DB::table('topics')
+            ->when($activeSchoolId, function($q) use ($activeSchoolId) {
+                $q->join('courses as tc', 'topics.course_id', '=', 'tc.id')
+                  ->join('users as ti2', 'tc.instructor_id', '=', 'ti2.id')
+                  ->where('ti2.school_id', $activeSchoolId);
+            })
+            ->count();
 
-        $totalUsersGlobal = DB::table('users')->count();
-        $verifiedUsersGlobal = DB::table('users')->whereNotNull('email_verified_at')->count();
+        $totalUsersGlobal = DB::table('users')
+            ->when($activeSchoolId, function($q) use ($activeSchoolId){ $q->where('school_id', $activeSchoolId); })
+            ->count();
+        $verifiedUsersGlobal = DB::table('users')
+            ->when($activeSchoolId, function($q) use ($activeSchoolId){ $q->where('school_id', $activeSchoolId); })
+            ->whereNotNull('email_verified_at')
+            ->count();
 
         $usersByProgramGlobal = DB::table('users')
+            ->when($activeSchoolId, function($q) use ($activeSchoolId){ $q->where('school_id', $activeSchoolId); })
             ->select('program_id', DB::raw('count(*) as total'))
             ->groupBy('program_id')
             ->limit(10)
@@ -445,7 +600,7 @@ class AdminReportsController extends Controller
         $activeEnrollmentsFiltered = DB::table('enrollments')
             ->when(count($filteredCourseIds) > 0, fn($q) => $q->whereIn('course_id', $filteredCourseIds))
             ->when($programFilter && count($filteredCourseIds)===0, fn($q) => $q->join('courses','enrollments.course_id','=','courses.id')->where('courses.program_id',$programFilter))
-            ->where('status','active')
+            ->where('enrollments.status','active')
             ->count();
 
         // Top courses by enrollment (filtered)
@@ -594,6 +749,26 @@ class AdminReportsController extends Controller
         $failedLoginsQuery = DB::table('failed_logins as f')
             ->leftJoin('users as u', 'u.id', '=', 'f.user_id');
 
+        // Scope failed logs by active school via user_id or matching email to a user in that school
+        if ($activeSchoolId) {
+            $failedLoginsQuery->where(function($q) use ($activeSchoolId) {
+                $q->whereExists(function($sq) use ($activeSchoolId) {
+                    $sq->select(DB::raw(1))
+                       ->from('users as ux')
+                       ->whereColumn('ux.id', 'f.user_id')
+                       ->where('ux.school_id', $activeSchoolId);
+                })->orWhere(function($q2) use ($activeSchoolId) {
+                    $q2->whereNull('f.user_id')
+                       ->whereExists(function($sq2) use ($activeSchoolId) {
+                           $sq2->select(DB::raw(1))
+                               ->from('users as ux2')
+                               ->whereColumn('ux2.email', 'f.email')
+                               ->where('ux2.school_id', $activeSchoolId);
+                       });
+                });
+            });
+        }
+
         if (!empty($from)) {
             try {
                 $fromDt = Carbon::parse($from)->startOfDay();
@@ -622,6 +797,24 @@ class AdminReportsController extends Controller
         }
         if (isset($toDt)) {
             $aggregation->where('fi.created_at', '<=', $toDt);
+        }
+        if ($activeSchoolId) {
+            $aggregation->where(function($q) use ($activeSchoolId) {
+                $q->whereExists(function($sq) use ($activeSchoolId) {
+                    $sq->select(DB::raw(1))
+                       ->from('users as ux')
+                       ->whereColumn('ux.id', 'fi.user_id')
+                       ->where('ux.school_id', $activeSchoolId);
+                })->orWhere(function($q2) use ($activeSchoolId) {
+                    $q2->whereNull('fi.user_id')
+                       ->whereExists(function($sq2) use ($activeSchoolId) {
+                           $sq2->select(DB::raw(1))
+                               ->from('users as ux2')
+                               ->whereColumn('ux2.email', 'fi.email')
+                               ->where('ux2.school_id', $activeSchoolId);
+                       });
+                });
+            });
         }
         $aggregation->groupByRaw('COALESCE(fi.user_id, 0), COALESCE(fi.email, "")');
 
@@ -732,6 +925,7 @@ class AdminReportsController extends Controller
      */
     public function chartData(Request $request)
     {
+        $activeSchoolId = $this->getActiveSchoolId();
         $range = $request->input('range', '7d');
         $startDate = $request->input('start');
         $endDate = $request->input('end');
@@ -766,6 +960,14 @@ class AdminReportsController extends Controller
 
         // Build course filter set similar to index
         $courseQuery = DB::table('courses');
+        if ($activeSchoolId) {
+            $courseQuery->whereExists(function($q) use ($activeSchoolId) {
+                $q->select(DB::raw(1))
+                  ->from('users as inst')
+                  ->whereColumn('inst.id', 'courses.instructor_id')
+                  ->where('inst.school_id', $activeSchoolId);
+            });
+        }
         if ($programFilter) $courseQuery->where('program_id', $programFilter);
         if ($courseFilterId) $courseQuery->where('id', $courseFilterId);
         if ($instructorId) $courseQuery->where('instructor_id', $instructorId);
@@ -784,6 +986,7 @@ class AdminReportsController extends Controller
 
             // registrations
             $usersQ = DB::table('users')->whereDate('created_at', $d);
+            if ($activeSchoolId) $usersQ->where('school_id', $activeSchoolId);
             if (count($filteredCourseIds) > 0) {
                 // registrations for students in those courses
                 $studentIds = DB::table('enrollments')->whereIn('course_id', $filteredCourseIds)->pluck('student_id')->unique()->toArray();
@@ -793,6 +996,7 @@ class AdminReportsController extends Controller
 
             // active accounts created that day
             $aaQ = DB::table('users')->where('status','active')->whereDate('created_at',$d);
+            if ($activeSchoolId) $aaQ->where('school_id', $activeSchoolId);
             if (count($filteredCourseIds) > 0) {
                 $studentIds = DB::table('enrollments')->whereIn('course_id', $filteredCourseIds)->pluck('student_id')->unique()->toArray();
                 if (count($studentIds) > 0) $aaQ->whereIn('id', $studentIds);
@@ -814,6 +1018,10 @@ class AdminReportsController extends Controller
                 }
             }
             $sessionIds = array_values(array_unique(array_filter($sessionIds)));
+            if ($activeSchoolId && count($sessionIds) > 0) {
+                $schoolUserIds = DB::table('users')->where('school_id', $activeSchoolId)->whereIn('id', $sessionIds)->pluck('id')->toArray();
+                $sessionIds = array_values(array_intersect($sessionIds, $schoolUserIds));
+            }
             if (count($filteredCourseIds) > 0) {
                 $studentIds = DB::table('enrollments')->whereIn('course_id', $filteredCourseIds)->pluck('student_id')->unique()->toArray();
                 $sessionIds = array_values(array_intersect($sessionIds, $studentIds));
@@ -821,7 +1029,16 @@ class AdminReportsController extends Controller
             $onlineCounts[] = count($sessionIds);
 
             // courses created
-            $coursesCreated[] = (int) DB::table('courses')->whereDate('created_at', $d)->count();
+            $ccQ = DB::table('courses')->whereDate('created_at', $d);
+            if ($activeSchoolId) {
+                $ccQ->whereExists(function($q) use ($activeSchoolId) {
+                    $q->select(DB::raw(1))
+                      ->from('users as inst')
+                      ->whereColumn('inst.id', 'courses.instructor_id')
+                      ->where('inst.school_id', $activeSchoolId);
+                });
+            }
+            $coursesCreated[] = (int) $ccQ->count();
 
             $cur->addDay();
         }
@@ -833,5 +1050,22 @@ class AdminReportsController extends Controller
             'onlineCounts' => $onlineCounts,
             'coursesCreated' => $coursesCreated,
         ]);
+    }
+
+    /**
+     * Resolve the active school id for the current admin context.
+     */
+    private function getActiveSchoolId()
+    {
+        $user = Auth::user();
+        if (!$user) return null;
+
+        if (method_exists($user, 'isSuperAdmin') && $user->isSuperAdmin()) {
+            return Session::get('active_school');
+        }
+        if (method_exists($user, 'isSchoolAdmin') && $user->isSchoolAdmin()) {
+            return $user->school_id;
+        }
+        return null;
     }
 }

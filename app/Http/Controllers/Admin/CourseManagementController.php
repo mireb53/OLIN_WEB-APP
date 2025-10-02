@@ -8,17 +8,38 @@ use App\Models\Course;
 use App\Models\Material;
 use App\Models\Assessment;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Session;
 use App\Models\Program;
 use App\Models\User;
+use Illuminate\Support\Str;
+use ZipArchive;
 
 class CourseManagementController extends Controller
 {
     public function index()
     {
+        $activeSchoolId = $this->getActiveSchoolId();
         // Server-side filtering and pagination
-        $query = Course::with(['instructor','program'])->withCount('students');
-        // Define allowed departments (could be moved to config if needed)
-        $departmentsList = ['CCS','CAS','CHS','CEA','CTDE','CTHBM'];
+        $query = Course::with(['instructor','program'])
+            ->when($activeSchoolId, function($q) use ($activeSchoolId) {
+                $q->whereHas('instructor', function($iq) use ($activeSchoolId){
+                    $iq->where('school_id', $activeSchoolId);
+                });
+            })
+            ->withCount('students');
+        // Build departments list dynamically for the active school; fallback to defaults if empty
+        $departmentsList = Course::when($activeSchoolId, function($q) use ($activeSchoolId){
+                $q->whereHas('instructor', function($iq) use ($activeSchoolId){ $iq->where('school_id', $activeSchoolId); });
+            })
+            ->whereNotNull('department')
+            ->distinct()
+            ->pluck('department')
+            ->filter()
+            ->values()
+            ->toArray();
+        if (empty($departmentsList)) {
+            $departmentsList = ['CCS','CAS','CHS','CEA','CTDE','CTHBM'];
+        }
 
         // search q: course title, id, instructor name, program name
         $q = request()->input('q');
@@ -75,8 +96,18 @@ class CourseManagementController extends Controller
             ]);
         }
 
-        // load all programs for the create modal program select
-        $programs = Program::orderBy('name')->get();
+        // load programs for the create modal program select (scoped to active school if set)
+        $programs = Program::orderBy('name')
+            ->when($activeSchoolId, function($q) use ($activeSchoolId) {
+                $q->whereExists(function($sq) use ($activeSchoolId){
+                    $sq->selectRaw('1')
+                       ->from('courses as pc')
+                       ->join('users as pi', 'pc.instructor_id', '=', 'pi.id')
+                       ->whereColumn('pc.program_id', 'programs.id')
+                       ->where('pi.school_id', $activeSchoolId);
+                });
+            })
+            ->get();
         return view('admin.course_management', compact('courses','programs'))
             ->with('departments', $departmentsList)
             ->with('selectedDepartment', $departmentFilter);
@@ -99,9 +130,13 @@ class CourseManagementController extends Controller
      */
     public function findInstructor(Request $request)
     {
-    $request->validate(['email' => 'required|email']);
+        $activeSchoolId = $this->getActiveSchoolId();
+        $request->validate(['email' => 'required|email']);
         $email = $request->input('email');
-        $user = User::where('email', $email)->where('role', 'instructor')->first();
+        $user = User::where('email', $email)
+            ->where('role', 'instructor')
+            ->when($activeSchoolId, function($q) use ($activeSchoolId){ $q->where('school_id', $activeSchoolId); })
+            ->first();
         if (!$user) {
             return response()->json(['success' => false, 'message' => 'Instructor not found.'], 404);
         }
@@ -113,6 +148,7 @@ class CourseManagementController extends Controller
      */
     public function store(Request $request)
     {
+        $activeSchoolId = $this->getActiveSchoolId();
         $validated = $request->validate([
             'title' => 'required|string|max:255',
             'course_code' => 'required|string|max:50|unique:courses,course_code',
@@ -123,6 +159,17 @@ class CourseManagementController extends Controller
             'credits' => 'nullable|numeric|min:0',
             'instructor_id' => 'required|exists:users,id',
         ]);
+
+        // Ensure instructor belongs to active school when set
+        if ($activeSchoolId) {
+            $ok = User::where('id', $validated['instructor_id'])
+                ->where('role','instructor')
+                ->where('school_id', $activeSchoolId)
+                ->exists();
+            if (!$ok) {
+                return response()->json(['success' => false, 'message' => 'Instructor must belong to the active school.'], 422);
+            }
+        }
 
         // Find or create program by name (acronym)
         $program = Program::firstOrCreate(['name' => $validated['program_name']]);
@@ -149,6 +196,7 @@ class CourseManagementController extends Controller
 
     public function show($courseId)
     {
+        $activeSchoolId = $this->getActiveSchoolId();
         $course = \App\Models\Course::with([
             'instructor',
             'program',
@@ -156,7 +204,11 @@ class CourseManagementController extends Controller
             'materials',
             'assessments',
             'students'
-        ])->findOrFail($courseId);
+        ])
+        ->when($activeSchoolId, function($q) use ($activeSchoolId){
+            $q->whereHas('instructor', function($iq) use ($activeSchoolId){ $iq->where('school_id', $activeSchoolId); });
+        })
+        ->findOrFail($courseId);
 
         // If the request expects JSON (AJAX/modal), return JSON payload
         if (request()->wantsJson() || request()->ajax()) {
@@ -179,6 +231,7 @@ class CourseManagementController extends Controller
      */
     public function showDetails($courseId)
     {
+        $activeSchoolId = $this->getActiveSchoolId();
         $course = \App\Models\Course::with([
             'instructor',
             'program',
@@ -186,14 +239,23 @@ class CourseManagementController extends Controller
             'materials',
             'assessments',
             'students'
-        ])->findOrFail($courseId);
+        ])
+        ->when($activeSchoolId, function($q) use ($activeSchoolId){
+            $q->whereHas('instructor', function($iq) use ($activeSchoolId){ $iq->where('school_id', $activeSchoolId); });
+        })
+        ->findOrFail($courseId);
 
         return view('admin.courses.course-details', compact('course'));
     }
 
     public function edit($courseId)
     {
-    $course = Course::with(['instructor','program'])->findOrFail($courseId);
+        $activeSchoolId = $this->getActiveSchoolId();
+        $course = Course::with(['instructor','program'])
+            ->when($activeSchoolId, function($q) use ($activeSchoolId){
+                $q->whereHas('instructor', function($iq) use ($activeSchoolId){ $iq->where('school_id', $activeSchoolId); });
+            })
+            ->findOrFail($courseId);
         // Return JSON for modal edit; redirect to management if accessed directly
         if (request()->wantsJson() || request()->ajax()) {
             return response()->json(['success' => true, 'course' => $course]);
@@ -203,7 +265,11 @@ class CourseManagementController extends Controller
 
     public function update(Request $request, $courseId)
     {
-        $course = Course::findOrFail($courseId);
+        $activeSchoolId = $this->getActiveSchoolId();
+        $course = Course::when($activeSchoolId, function($q) use ($activeSchoolId){
+                $q->whereHas('instructor', function($iq) use ($activeSchoolId){ $iq->where('school_id', $activeSchoolId); });
+            })
+            ->findOrFail($courseId);
         $validated = $request->validate([
             'title' => 'required|string|max:255',
             'course_code' => 'required|string|max:50|unique:courses,course_code,' . $course->id,
@@ -236,9 +302,29 @@ class CourseManagementController extends Controller
 
     public function destroy($courseId)
     {
-        $course = Course::findOrFail($courseId);
+        $activeSchoolId = $this->getActiveSchoolId();
+        $course = Course::when($activeSchoolId, function($q) use ($activeSchoolId){
+                $q->whereHas('instructor', function($iq) use ($activeSchoolId){ $iq->where('school_id', $activeSchoolId); });
+            })
+            ->findOrFail($courseId);
         $course->delete();
         return response()->json(['success' => true]);
+    }
+
+    /**
+     * Resolve the active school id for the current admin context.
+     */
+    private function getActiveSchoolId()
+    {
+        $user = Auth::user();
+        if (!$user) return null;
+        if (method_exists($user, 'isSuperAdmin') && $user->isSuperAdmin()) {
+            return Session::get('active_school');
+        }
+        if (method_exists($user, 'isSchoolAdmin') && $user->isSchoolAdmin()) {
+            return $user->school_id;
+        }
+        return null;
     }
 
     /**
@@ -316,6 +402,213 @@ class CourseManagementController extends Controller
         return response()->stream(function() use ($stream) { fpassthru($stream); }, 200, [
             'Content-Type' => $mime,
             'Content-Disposition' => $disposition.'; filename="'.basename($path).'"'
+        ]);
+    }
+
+    /**
+     * Export courses (all or single) as JSON suitable for re-import.
+     * Query param: course_id (optional) to export a single course.
+     */
+    public function export(Request $request)
+    {
+        $courseId = $request->query('course_id');
+        $q = Course::with(['program','instructor'])->orderBy('id');
+        if ($courseId) { $q->where('id', $courseId); }
+        $courses = $q->get();
+        $payload = $courses->map(function($c){
+            return [
+                'title' => $c->title,
+                'course_code' => $c->course_code,
+                'status' => $c->status,
+                'program_name' => $c->program?->name,
+                'department' => $c->department,
+                'description' => $c->description,
+                'credits' => $c->credits,
+                'instructor_email' => $c->instructor?->email,
+            ];
+        })->values();
+        $single = (bool)$courseId && $payload->count() === 1;
+        $json = json_encode([
+            'meta' => [
+                'exported_at' => now()->toIso8601String(),
+                'count' => $payload->count(),
+                'single' => $single,
+                'version' => 1
+            ],
+            'courses' => $payload
+        ], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
+        if ($single) {
+            $titleSlug = Str::slug($payload->first()['title'] ?: 'course');
+            $filename = $titleSlug . '-export-' . now()->format('Ymd-His') . '.json';
+        } else {
+            $filename = 'courses-export-' . now()->format('Ymd-His') . '.json';
+        }
+        return response($json, 200, [
+            'Content-Type' => 'application/json',
+            'Content-Disposition' => 'attachment; filename="'.$filename.'"'
+        ]);
+    }
+
+    /**
+     * Export all courses (ignores filters) to an Excel (.xlsx) file with columns matching the management table.
+     */
+    public function exportExcel()
+    {
+        $courses = Course::with(['instructor','program'])->withCount('students')->orderBy('created_at','desc')->get();
+
+        // Build minimal SpreadsheetML structure for a single-sheet XLSX
+        $headers = [
+            'ID','Title','Course Code','Instructor','Department','Program','Students','Status','Updated At','Credits','Description'
+        ];
+
+        $rowsXml = '';
+        $cell = function($v){
+            $val = htmlspecialchars((string)$v, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+            return '<c t="inlineStr"><is><t>'.$val.'</t></is></c>';
+        };
+        $rowsXml .= '<row>'.implode('', array_map($cell,$headers)).'</row>';
+        foreach($courses as $c){
+            $rowsXml .= '<row>'
+                .$cell($c->id)
+                .$cell($c->title)
+                .$cell($c->course_code)
+                .$cell($c->instructor?->name ?: 'N/A')
+                .$cell($c->department)
+                .$cell($c->program?->name)
+                .$cell($c->students_count)
+                .$cell($c->status)
+                .$cell(optional($c->updated_at)->format('Y-m-d H:i'))
+                .$cell($c->credits)
+                .$cell($c->description)
+                .'</row>';
+        }
+
+        $sheetXml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+            .'<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'
+            .'<sheetData>'.$rowsXml.'</sheetData>'
+            .'</worksheet>';
+        $workbookXml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+            .'<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">'
+            .'<sheets><sheet name="Courses" sheetId="1" r:id="rId1"/></sheets>'
+            .'</workbook>';
+        $relsXml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+            .'<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+            .'<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>'
+            .'</Relationships>';
+        $contentTypesXml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+            .'<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">'
+            .'<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>'
+            .'<Default Extension="xml" ContentType="application/xml"/>'
+            .'<Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>'
+            .'<Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>'
+            .'</Types>';
+        $rootRelsXml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+            .'<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+            .'<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>'
+            .'</Relationships>';
+
+        $tmp = tempnam(sys_get_temp_dir(), 'xlsx');
+        $zip = new ZipArchive();
+        $zip->open($tmp, ZipArchive::OVERWRITE);
+        $zip->addFromString('[Content_Types].xml', $contentTypesXml);
+        $zip->addEmptyDir('_rels');
+        $zip->addFromString('_rels/.rels', $rootRelsXml);
+        $zip->addEmptyDir('xl');
+        $zip->addEmptyDir('xl/_rels');
+        $zip->addEmptyDir('xl/worksheets');
+        $zip->addFromString('xl/workbook.xml', $workbookXml);
+        $zip->addFromString('xl/_rels/workbook.xml.rels', $relsXml);
+        $zip->addFromString('xl/worksheets/sheet1.xml', $sheetXml);
+        $zip->close();
+
+        $filename = 'courses-export-'.now()->format('Ymd-His').'.xlsx';
+        return response()->download($tmp, $filename, [
+            'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        ])->deleteFileAfterSend(true);
+    }
+
+    /**
+     * Import courses from previously exported JSON.
+     * Strategy: match/update by course_code; create if missing; associate program by name; link instructor by email if exists.
+     */
+    public function import(Request $request)
+    {
+        $request->validate([
+            'file' => 'required|file'
+        ]);
+        $contents = file_get_contents($request->file('file')->getRealPath());
+        $data = json_decode($contents, true);
+        if ($data === null && json_last_error() !== JSON_ERROR_NONE) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Invalid JSON: '.json_last_error_msg()
+            ], 422);
+        }
+        if (isset($data[0]) && is_array($data[0]) && !isset($data['courses'])) {
+            $data = [ 'meta' => [ 'inferred' => true, 'single' => count($data) === 1, 'version' => 1 ], 'courses' => $data ];
+        }
+        if (isset($data['course']) && !isset($data['courses'])) {
+            $data['courses'] = [ $data['course'] ];
+            $data['meta']['single'] = true;
+        }
+        if (!$data || !isset($data['courses']) || !is_array($data['courses'])) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Invalid file structure. Expecting object with a "courses" array.',
+                'received_keys' => array_keys(is_array($data)? $data : [])
+            ], 422);
+        }
+        $isSingle = false;
+        if (isset($data['meta']['single'])) {
+            $isSingle = (bool)$data['meta']['single'];
+        } elseif (count($data['courses']) === 1) {
+            $isSingle = true;
+        }
+        $created = 0; $updated = 0; $skipped = 0; $errors = [];
+        foreach ($data['courses'] as $idx => $c) {
+            if (empty($c['title']) || empty($c['course_code'])) { $skipped++; continue; }
+            try {
+                $existing = Course::where('course_code', $c['course_code'])->first();
+                if ($isSingle) {
+                    if ($existing) { $skipped++; continue; }
+                } else {
+                    if ($existing) { $skipped++; continue; }
+                }
+                $programId = null;
+                if (!empty($c['program_name'])) {
+                    $program = Program::firstOrCreate(['name' => $c['program_name']]);
+                    $programId = $program->id;
+                }
+                $instructorId = null;
+                if (!empty($c['instructor_email'])) {
+                    $user = User::where('email', $c['instructor_email'])->where('role', 'instructor')->first();
+                    if ($user) { $instructorId = $user->id; }
+                }
+                $payload = [
+                    'title' => $c['title'],
+                    'course_code' => $c['course_code'],
+                    'status' => $c['status'] ?? 'draft',
+                    'program_id' => $programId,
+                    'department' => $c['department'] ?? null,
+                    'description' => $c['description'] ?? null,
+                    'credits' => $c['credits'] ?? null,
+                ];
+                if ($instructorId) { $payload['instructor_id'] = $instructorId; }
+                Course::create($payload);
+                $created++;
+            } catch (\Throwable $e) {
+                $errors[] = 'Row '.($idx+1).': '.$e->getMessage();
+            }
+        }
+        return response()->json([
+            'success' => true,
+            'mode' => $isSingle ? 'single' : 'bulk',
+            'summary' => [
+                'created' => $created,
+                'updated' => $updated,
+                'skipped_existing' => $skipped,
+                'errors' => $errors
+            ]
         ]);
     }
 }
