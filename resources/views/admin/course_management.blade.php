@@ -396,7 +396,7 @@
             }
 
             // View / Edit modal wiring (modal markup lives in partials)
-            function openViewModal(courseId) {
+            function openViewModal(courseId, fallbackHref) {
                 // include credentials so the session cookie is sent with the AJAX request
                 fetch(`{{ url('/admin/course-management') }}/${courseId}`, { headers: { 'Accept': 'application/json' }, credentials: 'same-origin' })
                 .then(r => {
@@ -413,11 +413,13 @@
                     if (payload && payload.success) {
                         if (window.renderCourseModal) window.renderCourseModal(payload.course);
                     } else {
+                        if (fallbackHref) { window.location.href = fallbackHref; return; }
                         alert('Failed to load course details');
                     }
                 })
                 .catch((err) => {
                     console.error('openViewModal error:', err);
+                    if (fallbackHref) { window.location.href = fallbackHref; return; }
                     if (err && err.message === 'auth') {
                         alert('Unable to load course: session expired or insufficient permissions. Please log in again.');
                     } else {
@@ -678,7 +680,7 @@
                     if (tableBody) tableBody.classList.add('blink-refresh');
                     
                     // Make AJAX request to get filtered results
-                    fetch(`{{ route('admin.courseManagement') }}?${params.toString()}`, {
+                    fetch(`{{ route('admin.course_management') }}?${params.toString()}`, {
                         headers: {
                             'Accept': 'application/json',
                             'X-Requested-With': 'XMLHttpRequest'
@@ -693,7 +695,17 @@
                                 tableBody.innerHTML = data.html;
                                 bindInlineView();
                             }
-                            
+                            // Update status line (approximate without first/last indices)
+                            try {
+                                const statusEl = document.getElementById('paginationStatus');
+                                if (statusEl) {
+                                    const total = Number(data.total || 0);
+                                    const visible = document.querySelectorAll('#coursesTableBody tr[data-course-id]').length;
+                                    statusEl.innerHTML = `Showing ${visible} of ${total} courses`;
+                                    statusEl.setAttribute('data-total', total);
+                                }
+                            } catch(e) { /* ignore */ }
+
                             // Update URL without page refresh
                             const newUrl = window.location.pathname + (params.toString() ? ('?' + params.toString()) : '');
                             window.history.replaceState({}, '', newUrl);
@@ -721,6 +733,10 @@
                             const newUrl = window.location.pathname + (params.toString() ? ('?' + params.toString()) : '');
                             window.location.href = newUrl;
                         }, 2000);
+                    })
+                    .finally(() => {
+                        const tableBody = document.getElementById('coursesTableBody');
+                        if (tableBody) tableBody.classList.remove('blink-refresh');
                     });
                 }
 
@@ -787,7 +803,7 @@
                     // merge filters
                     lastQueryParams.forEach((v,k)=>{ if(!params.has(k)) params.set(k,v); });
                     tableBody.classList.add('blink-refresh');
-                    fetch(`{{ route('admin.courseManagement') }}?${params.toString()}`, { headers:{'Accept':'application/json','X-Requested-With':'XMLHttpRequest'}, credentials:'same-origin' })
+                    fetch(`{{ route('admin.course_management') }}?${params.toString()}`, { headers:{'Accept':'application/json','X-Requested-With':'XMLHttpRequest'}, credentials:'same-origin' })
                         .then(r=>r.json())
                         .then(data=>{
                             if(data.success){
@@ -831,12 +847,17 @@
                 bindInlineView();
 
                 // Delegate view link to openViewModal instead of full navigation
-                document.getElementById('coursesTableBody').addEventListener('click', function(e){
+                const tableEl = document.getElementById('coursesTableBody');
+                if (!tableEl) return;
+                tableEl.addEventListener('click', function(e){
                     const viewLink = e.target.closest('a.js-view-inline');
                     if(!viewLink) return;
+                    // If no modal renderer is present, allow default navigation to the full details page
+                    if (!window.renderCourseModal) return;
                     e.preventDefault();
                     const id = viewLink.getAttribute('data-id');
-                    if(id) openViewModal(id);
+                    const href = viewLink.getAttribute('href');
+                    if(id) openViewModal(id, href);
                 });
             });
         </script>

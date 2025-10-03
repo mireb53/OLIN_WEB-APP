@@ -215,8 +215,15 @@ class UserManagementController extends Controller
      */
     public function show(User $user)
     {
-        $user->load('program', 'section');
-        return view('admin.users.show', compact('user'));
+        $this->authorize('view', $user);
+        // Eager-load relations used by role-specific profile pages
+        $user->load(['program', 'section', 'school', 'taughtCourses', 'courses']);
+
+        // Lightweight stats for display
+        $taughtCount = method_exists($user, 'taughtCourses') ? $user->taughtCourses->count() : 0;
+        $enrolledCount = method_exists($user, 'courses') ? $user->courses->count() : 0;
+
+        return view('admin.users.show', compact('user', 'taughtCount', 'enrolledCount'));
     }
 
     /**

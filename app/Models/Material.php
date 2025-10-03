@@ -22,6 +22,7 @@ class Material extends Model
         'title',
         'description',
         'file_path',
+        'original_filename',
         'material_type',
         'available_at',
         'unavailable_at',

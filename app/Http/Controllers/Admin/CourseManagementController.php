@@ -524,9 +524,20 @@ class CourseManagementController extends Controller
     public function export(Request $request)
     {
         $courseId = $request->query('course_id');
-        $q = Course::with(['program','instructor'])->orderBy('id');
+        // Eager load full graph for rich export
+        $q = Course::with([
+            'program',
+            'instructor',
+            'topics',
+            'materials.topic',
+            'assessments.questions.options',
+            'assessments.topic',
+            'assessments.creator',
+            'students'
+        ])->orderBy('id');
         if ($courseId) { $q->where('id', $courseId); }
         $courses = $q->get();
+
         $payload = $courses->map(function($c){
             return [
                 'title' => $c->title,
@@ -537,15 +548,64 @@ class CourseManagementController extends Controller
                 'description' => $c->description,
                 'credits' => $c->credits,
                 'instructor_email' => $c->instructor?->email,
+                'topics' => $c->topics->map(fn($t) => [ 'name' => $t->name ])->values(),
+                'materials' => $c->materials->map(fn($m) => [
+                    'title' => $m->title,
+                    'description' => $m->description,
+                    'material_type' => $m->material_type,
+                    'topic_name' => $m->topic?->name,
+                    'file_path' => $m->file_path,
+                    'original_filename' => $m->original_filename,
+                    'available_at' => optional($m->available_at)->toDateTimeString(),
+                    'unavailable_at' => optional($m->unavailable_at)->toDateTimeString(),
+                ])->values(),
+                'assessments' => $c->assessments->map(function($a){
+                    return [
+                        'title' => $a->title,
+                        'type' => $a->type,
+                        'description' => $a->description,
+                        'duration_minutes' => $a->duration_minutes,
+                        'access_code' => $a->access_code,
+                        'assessment_file_path' => $a->assessment_file_path,
+                        'available_at' => optional($a->available_at)->toDateTimeString(),
+                        'unavailable_at' => optional($a->unavailable_at)->toDateTimeString(),
+                        'max_attempts' => $a->max_attempts,
+                        'topic_name' => $a->topic?->name,
+                        'creator_email' => $a->creator?->email,
+                        'questions' => $a->questions->map(function($q){
+                            return [
+                                'question_text' => $q->question_text,
+                                'question_type' => $q->question_type,
+                                'points' => $q->points,
+                                'order' => $q->order,
+                                'correct_answer' => $q->correct_answer,
+                                'options' => $q->options->map(fn($o) => [
+                                    'option_text' => $o->option_text,
+                                    'option_order' => $o->option_order,
+                                ])->values()
+                            ];
+                        })->values(),
+                    ];
+                })->values(),
+                'students' => $c->students->map(function($s){
+                    return [
+                        'email' => $s->email,
+                        'status' => $s->pivot->status ?? null,
+                        'enrollment_date' => $s->pivot->enrollment_date ?? null,
+                        'grade' => $s->pivot->grade ?? null,
+                    ];
+                })->values(),
             ];
         })->values();
+
         $single = (bool)$courseId && $payload->count() === 1;
         $json = json_encode([
             'meta' => [
                 'exported_at' => now()->toIso8601String(),
                 'count' => $payload->count(),
                 'single' => $single,
-                'version' => 1
+                'version' => 2,
+                'includes' => ['topics','materials','assessments.questions.options','students']
             ],
             'courses' => $payload
         ], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
@@ -656,8 +716,9 @@ class CourseManagementController extends Controller
                 'message' => 'Invalid JSON: '.json_last_error_msg()
             ], 422);
         }
+        // Normalize variants
         if (isset($data[0]) && is_array($data[0]) && !isset($data['courses'])) {
-            $data = [ 'meta' => [ 'inferred' => true, 'single' => count($data) === 1, 'version' => 1 ], 'courses' => $data ];
+            $data = [ 'meta' => [ 'inferred' => true, 'single' => count($data) === 1, 'version' => 2 ], 'courses' => $data ];
         }
         if (isset($data['course']) && !isset($data['courses'])) {
             $data['courses'] = [ $data['course'] ];
@@ -674,50 +735,165 @@ class CourseManagementController extends Controller
         if (isset($data['meta']['single'])) {
             $isSingle = (bool)$data['meta']['single'];
         } elseif (count($data['courses']) === 1) {
-            $isSingle = true;
+            $isSingle = true; // fallback if meta missing
         }
+
         $created = 0; $updated = 0; $skipped = 0; $errors = [];
+
         foreach ($data['courses'] as $idx => $c) {
             if (empty($c['title']) || empty($c['course_code'])) { $skipped++; continue; }
             try {
                 $existing = Course::where('course_code', $c['course_code'])->first();
                 if ($isSingle) {
-                    if ($existing) { $skipped++; continue; }
+                    if ($existing) {
+                        return response()->json([
+                            'success' => false,
+                            'message' => 'Cannot import: course with code '.$c['course_code'].' already exists. Delete it first to restore from backup.',
+                            'mode' => 'single'
+                        ], 409);
+                    }
                 } else {
                     if ($existing) { $skipped++; continue; }
                 }
-                $programId = null;
-                if (!empty($c['program_name'])) {
-                    $program = Program::firstOrCreate(['name' => $c['program_name']]);
-                    $programId = $program->id;
-                }
-                $instructorId = null;
-                if (!empty($c['instructor_email'])) {
-                    $user = User::where('email', $c['instructor_email'])->where('role', 'instructor')->first();
-                    if ($user) { $instructorId = $user->id; }
-                }
-                $payload = [
-                    'title' => $c['title'],
-                    'course_code' => $c['course_code'],
-                    'status' => $c['status'] ?? 'draft',
-                    'program_id' => $programId,
-                    'department' => $c['department'] ?? null,
-                    'description' => $c['description'] ?? null,
-                    'credits' => $c['credits'] ?? null,
-                ];
-                if ($instructorId) { $payload['instructor_id'] = $instructorId; }
-                Course::create($payload);
-                $created++;
+
+                \DB::transaction(function() use (&$created, $c) {
+                    $programId = null;
+                    if (!empty($c['program_name'])) {
+                        $program = Program::firstOrCreate(['name' => $c['program_name']]);
+                        $programId = $program->id;
+                    }
+                    $instructorId = null;
+                    if (!empty($c['instructor_email'])) {
+                        $instr = User::where('email', $c['instructor_email'])->first();
+                        if ($instr) { $instructorId = $instr->id; }
+                    }
+                    $course = Course::create([
+                        'title' => $c['title'],
+                        'status' => $c['status'] ?? 'draft',
+                        'program_id' => $programId,
+                        'department' => $c['department'] ?? null,
+                        'description' => $c['description'] ?? null,
+                        'credits' => $c['credits'] ?? null,
+                        'course_code' => $c['course_code'],
+                        'instructor_id' => $instructorId,
+                    ]);
+
+                    // Topics
+                    $topicMap = [];
+                    if (!empty($c['topics']) && is_array($c['topics'])) {
+                        foreach ($c['topics'] as $t) {
+                            if (empty($t['name'])) { continue; }
+                            $topic = $course->topics()->create(['name' => $t['name']]);
+                            $topicMap[$t['name']] = $topic->id;
+                        }
+                    }
+
+                    // Materials
+                    if (!empty($c['materials']) && is_array($c['materials'])) {
+                        foreach ($c['materials'] as $m) {
+                            $topicId = null;
+                            if (!empty($m['topic_name'])) {
+                                if (!isset($topicMap[$m['topic_name']])) {
+                                    $topic = $course->topics()->create(['name' => $m['topic_name']]);
+                                    $topicMap[$m['topic_name']] = $topic->id;
+                                }
+                                $topicId = $topicMap[$m['topic_name']];
+                            }
+                            $course->materials()->create([
+                                'title' => $m['title'] ?? 'Untitled Material',
+                                'description' => $m['description'] ?? null,
+                                'material_type' => $m['material_type'] ?? null,
+                                'topic_id' => $topicId,
+                                'file_path' => $m['file_path'] ?? null,
+                                'original_filename' => $m['original_filename'] ?? null,
+                                'available_at' => $m['available_at'] ?? null,
+                                'unavailable_at' => $m['unavailable_at'] ?? null,
+                            ]);
+                        }
+                    }
+
+                    // Assessments
+                    if (!empty($c['assessments']) && is_array($c['assessments'])) {
+                        foreach ($c['assessments'] as $a) {
+                            $topicId = null;
+                            if (!empty($a['topic_name'])) {
+                                if (!isset($topicMap[$a['topic_name']])) {
+                                    $topic = $course->topics()->create(['name' => $a['topic_name']]);
+                                    $topicMap[$a['topic_name']] = $topic->id;
+                                }
+                                $topicId = $topicMap[$a['topic_name']];
+                            }
+                            $creatorId = null;
+                            if (!empty($a['creator_email'])) {
+                                $creator = User::where('email', $a['creator_email'])->first();
+                                if ($creator) { $creatorId = $creator->id; }
+                            }
+                            if (!$creatorId) { $creatorId = Auth::id(); }
+                            $assessment = $course->assessments()->create([
+                                'title' => $a['title'] ?? 'Untitled Assessment',
+                                'type' => $a['type'] ?? null,
+                                'description' => $a['description'] ?? null,
+                                'duration_minutes' => $a['duration_minutes'] ?? null,
+                                'access_code' => $a['access_code'] ?? null,
+                                'assessment_file_path' => $a['assessment_file_path'] ?? null,
+                                'available_at' => $a['available_at'] ?? null,
+                                'unavailable_at' => $a['unavailable_at'] ?? null,
+                                'max_attempts' => $a['max_attempts'] ?? null,
+                                'topic_id' => $topicId,
+                                'created_by' => $creatorId,
+                            ]);
+                            if (!empty($a['questions']) && is_array($a['questions'])) {
+                                foreach ($a['questions'] as $q) {
+                                    $question = $assessment->questions()->create([
+                                        'question_text' => $q['question_text'] ?? 'Question',
+                                        'question_type' => $q['question_type'] ?? null,
+                                        'points' => $q['points'] ?? 0,
+                                        'order' => $q['order'] ?? 0,
+                                        'correct_answer' => $q['correct_answer'] ?? null,
+                                    ]);
+                                    if (!empty($q['options']) && is_array($q['options'])) {
+                                        foreach ($q['options'] as $o) {
+                                            $question->options()->create([
+                                                'option_text' => $o['option_text'] ?? '',
+                                                'option_order' => $o['option_order'] ?? 0,
+                                            ]);
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // Enrolled students
+                    if (!empty($c['students']) && is_array($c['students'])) {
+                        foreach ($c['students'] as $st) {
+                            if (empty($st['email'])) { continue; }
+                            $user = User::where('email', $st['email'])->first();
+                            if ($user) {
+                                $course->students()->syncWithoutDetaching([
+                                    $user->id => [
+                                        'status' => $st['status'] ?? 'enrolled',
+                                        'enrollment_date' => $st['enrollment_date'] ?? now(),
+                                        'grade' => $st['grade'] ?? null,
+                                    ]
+                                ]);
+                            }
+                        }
+                    }
+
+                    $created++;
+                });
             } catch (\Throwable $e) {
                 $errors[] = 'Row '.($idx+1).': '.$e->getMessage();
             }
         }
+
         return response()->json([
             'success' => true,
             'mode' => $isSingle ? 'single' : 'bulk',
             'summary' => [
                 'created' => $created,
-                'updated' => $updated,
+                'updated' => $updated, // reserved for future update support
                 'skipped_existing' => $skipped,
                 'errors' => $errors
             ]

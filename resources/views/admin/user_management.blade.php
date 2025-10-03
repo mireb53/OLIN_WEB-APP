@@ -189,16 +189,14 @@
                                         Edit
                                     </button>
                                     @endcan
-                                    @can('resetPassword', $user)
-                                    <button 
-                                        type="button"
-                                        data-modal-target="resetPasswordModal"
-                                        data-user-id="{{ $user->id }}"
-                                        data-user-email="{{ $user->email }}"
-                                        class="px-3 py-1 text-sm bg-yellow-100 text-yellow-600 rounded hover:bg-yellow-200 reset-password-btn"
+                                    @can('view', $user)
+                                    <a 
+                                        href="{{ route('admin.users.show', $user->id) }}"
+                                        class="px-3 py-1 text-sm bg-yellow-100 text-yellow-700 rounded hover:bg-yellow-200"
+                                        title="View Profile"
                                     >
-                                        Reset Password
-                                    </button>
+                                        View
+                                    </a>
                                     @endcan
                                     @can('delete', $user)
                                     <button 
@@ -228,7 +226,8 @@
     {{-- Modals --}}
     @include('admin.UsersModals.add-user-modal')
     @include('admin.UsersModals.edit-user-modal')
-    @include('admin.UsersModals.reset-password-modal')
+    {{-- Reset password modal no longer used on this page --}}
+    {{-- @include('admin.UsersModals.reset-password-modal') --}}
     @include('admin.UsersModals.delete-user-modal')
     @include('admin.UsersModals.bulk-import-modal')
 
@@ -297,16 +296,7 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     });
 
-    document.querySelectorAll('.reset-password-btn').forEach(button => {
-        button.addEventListener('click', (e) => {
-            e.preventDefault();
-            const userId = button.dataset.userId;
-            const modal = document.getElementById('resetPasswordModal');
-            const form = document.getElementById('resetPasswordForm');
-            form.action = `/admin/users/${userId}/reset-password`;
-            modal.classList.remove('hidden');
-        });
-    });
+    // Reset Password button removed in favor of View Profile navigation
 
     document.querySelectorAll('.delete-user-btn').forEach(button => {
         button.addEventListener('click', (e) => {
