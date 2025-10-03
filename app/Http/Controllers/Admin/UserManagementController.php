@@ -8,6 +8,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Session;
+use Illuminate\Support\Str;
 use App\Http\Controllers\Controller;
 use App\Models\User;
 use App\Models\School;
@@ -167,13 +168,12 @@ class UserManagementController extends Controller
         $actor = Auth::user();
 
         $request->validate([
-            'name' => 'required|string|max:255',
             'email' => 'required|string|email|max:255|unique:users',
-            'role' => 'required|in:super_admin,school_admin,instructor,student',
-            'password' => 'required|string|min:8|confirmed',
+            // Only allow creating Student or Instructor here; admin promotions happen via Edit
+            'role' => 'required|in:instructor,student',
             'program_id' => 'nullable|exists:programs,id',
             'section_id' => 'nullable|exists:sections,id',
-            'school_id' => 'nullable|exists:schools,id'
+            'school_id' => 'nullable|exists:schools,id',
         ]);
 
         // NEW: Role assignment validation
@@ -191,11 +191,14 @@ class UserManagementController extends Controller
             $schoolId = $actor->school_id;
         }
 
+        // For student/instructor, no password required at creation (Google SSO in most cases)
         $user = User::create([
-            'name' => $request->name,
+            'name' => $request->input('name') ?: explode('@', $request->email)[0],
+            'first_name' => $request->input('first_name'),
+            'last_name' => $request->input('last_name'),
             'email' => $request->email,
             'role' => $request->role,
-            'password' => Hash::make($request->password),
+            'password' => Hash::make(Str::random(32)), // placeholder strong random; can be reset later
             'program_id' => $request->program_id,
             'section_id' => $request->section_id,
             'email_verified_at' => now(), // Auto-verify for admin created users
@@ -243,7 +246,11 @@ class UserManagementController extends Controller
             'status' => 'required|in:active,inactive,suspended',
             'school_id' => 'nullable|exists:schools,id',
             // Require admin password confirmation for sensitive action
-            'admin_password' => 'required|string'
+            'admin_password' => 'required|string',
+            'first_name' => 'nullable|string|max:255',
+            'last_name' => 'nullable|string|max:255',
+            // When role is admin, enforce password fields
+            'password' => 'nullable|string|min:8|confirmed',
         ]);
 
         // Verify admin password
@@ -255,7 +262,8 @@ class UserManagementController extends Controller
         if ($request->role === User::ROLE_SUPER_ADMIN && !$actor->isSuperAdmin()) {
             return redirect()->back()->withInput()->with('error', 'Only a Super Admin can assign the Super Admin role.');
         }
-        if ($user->role === User::ROLE_SUPER_ADMIN && $actor->isSchoolAdmin()) {
+        // Prevent non-super admins from editing Super Admin accounts
+        if ($user->role === User::ROLE_SUPER_ADMIN && !$actor->isSuperAdmin()) {
             return redirect()->back()->withInput()->with('error', 'You cannot edit a Super Admin.');
         }
 
@@ -273,18 +281,23 @@ class UserManagementController extends Controller
             'name' => $request->name,
             'email' => $request->email,
             'role' => $request->role,
+            'first_name' => $request->first_name,
+            'last_name' => $request->last_name,
             'program_id' => $request->program_id,
             'section_id' => $request->section_id,
             'status' => $request->status,
             'school_id' => $schoolId,
         ]);
 
-        // Update password if provided
+        // If promoting to admin (school_admin or super_admin), require setting/resetting password
+        $isPromotingToAdmin = in_array($request->role, [User::ROLE_SCHOOL_ADMIN, User::ROLE_SUPER_ADMIN]);
+        if ($isPromotingToAdmin) {
+            if (!$request->filled('password')) {
+                return redirect()->back()->withInput()->with('error', 'Please set a password when assigning an Admin role.');
+            }
+        }
+
         if ($request->filled('password')) {
-            $request->validate([
-                'password' => 'string|min:8|confirmed',
-            ]);
-            
             $user->update([
                 'password' => Hash::make($request->password),
             ]);
@@ -370,8 +383,19 @@ class UserManagementController extends Controller
                     continue;
                 }
 
-                // Default values
-                $role   = $row['Role']   ?? 'student';
+                // Default values (normalize role values)
+                $roleRaw = $row['Role']   ?? 'student';
+                $map = [
+                    'superadmin' => User::ROLE_SUPER_ADMIN,
+                    'super_admin' => User::ROLE_SUPER_ADMIN,
+                    'schooladmin' => User::ROLE_SCHOOL_ADMIN,
+                    'school_admin' => User::ROLE_SCHOOL_ADMIN,
+                    'instructor' => User::ROLE_INSTRUCTOR,
+                    'student' => User::ROLE_STUDENT,
+                    'admin' => User::ROLE_SCHOOL_ADMIN, // treat generic admin as school_admin
+                ];
+                $key = strtolower(trim((string)$roleRaw));
+                $role = $map[$key] ?? User::ROLE_STUDENT;
                 $status = $row['Status'] ?? 'active';
 
                 // ✅ Validate role & status against your system
@@ -394,6 +418,12 @@ class UserManagementController extends Controller
                     $schoolId = Session::get('active_school') ?: $request->school_id;
                 } elseif ($actor && $actor->isSchoolAdmin()) {
                     $schoolId = $actor->school_id;
+                }
+
+                // Enforce privilege: only Super Admin can import Super Admins
+                if ($role === User::ROLE_SUPER_ADMIN && !($actor && $actor->isSuperAdmin())) {
+                    $errors[] = "Only a Super Admin can import Super Admin accounts ({$row['Email']}).";
+                    continue;
                 }
 
                 // ✅ Create user

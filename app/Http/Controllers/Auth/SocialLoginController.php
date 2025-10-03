@@ -35,6 +35,8 @@ class SocialLoginController extends Controller
         try {
             // Get user data from Google
             $googleUser = Socialite::driver('google')->user();
+            // Check if Google reports the email as verified (used only after first login)
+            $isGoogleVerified = (bool) data_get($googleUser->user, 'email_verified');
 
             // Find user by Google ID or email
             $user = User::where('google_id', $googleUser->id)
@@ -50,22 +52,86 @@ class SocialLoginController extends Controller
                     $user->save();
                     Log::info('Google account linked to existing user: ' . $user->email);
                 }
+                // Sync profile names from Google on first successful Google login or if current name looks auto-generated
+                $googleName = $googleUser->getName() ?: data_get($googleUser->user, 'name');
+                $givenName = data_get($googleUser->user, 'given_name');
+                $familyName = data_get($googleUser->user, 'family_name');
+                $currentName = trim((string) $user->name);
+                $emailLocal = strstr($user->email, '@', true) ?: '';
+                if ($googleName && ($currentName === '' || strcasecmp($currentName, $emailLocal) === 0 || empty($user->first_name) || empty($user->last_name))) {
+                    $user->name = $googleName;
+                    if ($givenName) $user->first_name = $givenName;
+                    if ($familyName) $user->last_name = $familyName;
+                    $user->save();
+                    Log::info('Synced user name from Google for: ' . $user->email);
+                }
                 
-                // Log the user in
-                Auth::login($user, true);
+                // Enforce policy: Admin roles must have DB password (login with Google may be allowed but password must exist)
+                if (in_array($user->role, ['super_admin','school_admin']) && empty($user->password)) {
+                    return redirect('/login')->with('error', 'Admin accounts must sign in with email and password. Please use password login.');
+                }
+
+                // Log the user in (don't set remember on social login to avoid remember_token issues)
+                Auth::login($user);
+                session()->regenerate();
                 Log::info('User logged in via Google: ' . $user->email);
 
-                // If not verified, send OTP and redirect to verification page
-                if (method_exists($user, 'hasVerifiedEmail') && !$user->hasVerifiedEmail()) {
+                // Require OTP on first login always (even if Google email is verified)
+                if (is_null($user->last_login_at)) {
                     $verificationCode = random_int(100000, 999999);
                     $expiresAt = Carbon::now()->addMinutes(config('auth.verification.expire', 60));
                     $user->forceFill([
                         'email_verification_code' => $verificationCode,
                         'email_verification_code_expires_at' => $expiresAt,
                     ])->save();
-                    $user->notify(new VerifyEmailWithCode($verificationCode));
+                    try {
+                        $user->notify(new VerifyEmailWithCode($verificationCode));
+                    } catch (\Throwable $mailEx) {
+                        // Do not fail login just because email sending failed (e.g., SMTP quota)
+                        Log::error('Failed to send verification code email: ' . $mailEx->getMessage(), ['exception' => $mailEx]);
+                        if (config('app.debug')) {
+                            return redirect()->route('verification.notice')
+                                ->with('status', 'Email sending is unavailable. Use this verification code: ' . $verificationCode)
+                                ->with('dev_verification_code', $verificationCode);
+                        }
+                        return redirect()->route('verification.notice')
+                            ->with('status', 'We could not send the email right now. Please try again in a few minutes or contact your administrator.');
+                    }
                     return redirect()->route('verification.notice')
                         ->with('status', 'We sent a verification code to your email. Please enter it to continue.');
+                }
+
+                // After first login, if email is still not verified, consider Google's verified signal
+                if (method_exists($user, 'hasVerifiedEmail') && !$user->hasVerifiedEmail()) {
+                    if ($isGoogleVerified) {
+                        if (method_exists($user, 'markEmailAsVerified')) {
+                            $user->markEmailAsVerified();
+                        } else {
+                            $user->forceFill(['email_verified_at' => now()])->save();
+                        }
+                        Log::info('Email auto-verified from Google for: ' . $user->email);
+                    } else {
+                        $verificationCode = random_int(100000, 999999);
+                        $expiresAt = Carbon::now()->addMinutes(config('auth.verification.expire', 60));
+                        $user->forceFill([
+                            'email_verification_code' => $verificationCode,
+                            'email_verification_code_expires_at' => $expiresAt,
+                        ])->save();
+                        try {
+                            $user->notify(new VerifyEmailWithCode($verificationCode));
+                        } catch (\Throwable $mailEx) {
+                            Log::error('Failed to send verification code email: ' . $mailEx->getMessage(), ['exception' => $mailEx]);
+                            if (config('app.debug')) {
+                                return redirect()->route('verification.notice')
+                                    ->with('status', 'Email sending is unavailable. Use this verification code: ' . $verificationCode)
+                                    ->with('dev_verification_code', $verificationCode);
+                            }
+                            return redirect()->route('verification.notice')
+                                ->with('status', 'We could not send the email right now. Please try again in a few minutes or contact your administrator.');
+                        }
+                        return redirect()->route('verification.notice')
+                            ->with('status', 'We sent a verification code to your email. Please enter it to continue.');
+                    }
                 }
 
             } else {

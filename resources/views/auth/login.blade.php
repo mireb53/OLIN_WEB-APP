@@ -17,8 +17,8 @@
     {{-- Right Section --}}
     <div class="right-section">
       <div class="form-container">
-        <h1 class="welcome-title">Welcome Back!</h1>
-        <p class="welcome-subtitle">Manage your courses and empower offline learning.</p>
+  <h1 class="welcome-title">Welcome Back!</h1>
+  <p class="welcome-subtitle">Sign in with your email and password or continue with Google.</p>
 
         {{-- Flash messages --}}
         @if(session('status'))
@@ -51,14 +51,14 @@
           </div>
 
           {{-- Forgot Password --}}
-          <a href="#" class="forgot-password">Forgot Password?</a>
+          <a href="{{ route('password.request') }}" class="forgot-password">Forgot Password?</a>
 
           {{-- Submit --}}
           <button type="submit" class="btn login-btn">Login</button>
 
           {{-- OR Separator --}}
-          <div class="separator">
-            <span>or</span>
+          <div class="separator" aria-label="or">
+            <span>OR</span>
           </div>
 
           {{-- Google Login --}}

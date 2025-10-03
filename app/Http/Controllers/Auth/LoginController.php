@@ -19,14 +19,23 @@ class LoginController extends Controller
     // Handles the login form submission
     public function login(Request $request)
     {
-        // Validate the input (email and password must be present)
-        $credentials = $request->validate([
+        // Validate inputs
+        $request->validate([
             'email' => ['required', 'email'],
-            'password' => ['required'],
+            'password' => ['nullable', 'string'],
         ]);
 
-        // Attempt to log the user in
-        if (Auth::attempt($credentials)) {
+        // Determine user and role to enforce rules
+        $user = \App\Models\User::where('email', $request->email)->first();
+
+        // If user is admin (school_admin/super_admin), password is mandatory
+        if ($user && in_array($user->role, ['super_admin','school_admin'])) {
+            $request->validate(['password' => ['required', 'string']]);
+        }
+
+        // Attempt to log the user in if password is provided
+        $credentials = ['email' => $request->email, 'password' => (string) $request->password];
+        if (!empty($request->password) && Auth::attempt($credentials)) {
             // Regenerate session to prevent session fixation attacks
             $request->session()->regenerate();
 
@@ -61,7 +70,20 @@ class LoginController extends Controller
             return redirect()->intended('/dashboard'); // Generic user dashboard
         }
 
-        // If authentication fails, redirect back with an error message
+        // If authentication fails
+        if ($user && empty($request->password)) {
+            // No password provided
+            if (in_array($user->role, ['super_admin','school_admin'])) {
+                return back()->withErrors([
+                    'email' => 'Admins must sign in with email and password.',
+                ])->onlyInput('email');
+            } else {
+                return back()->withErrors([
+                    'email' => 'Please enter your password to sign in here, or use "Sign in with Google".',
+                ])->onlyInput('email');
+            }
+        }
+
         return back()->withErrors([
             'email' => 'The provided credentials do not match our records.',
         ])->onlyInput('email');

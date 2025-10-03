@@ -10,6 +10,16 @@
                 <label class="block text-sm font-medium text-gray-700">Name</label>
                 <input type="text" name="name" id="editUserName" class="border border-gray-300 rounded-lg px-3 py-2 w-full">
             </div>
+            <div class="mb-4 grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">First Name</label>
+                    <input type="text" name="first_name" id="editUserFirstName" class="border border-gray-300 rounded-lg px-3 py-2 w-full">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">Last Name</label>
+                    <input type="text" name="last_name" id="editUserLastName" class="border border-gray-300 rounded-lg px-3 py-2 w-full">
+                </div>
+            </div>
             <div class="mb-4">
                 <label class="block text-sm font-medium text-gray-700">Email</label>
                 <input type="email" name="email" id="editUserEmail" class="border border-gray-300 rounded-lg px-3 py-2 w-full">
@@ -20,8 +30,21 @@
                     <option value="instructor">Instructor</option>
                     <option value="student">Student</option>
                     <option value="school_admin">School Admin</option>
-                    <option value="super_admin">Super Admin</option>
+                    @if(auth()->user() && auth()->user()->isSuperAdmin())
+                        <option value="super_admin">Super Admin</option>
+                    @endif
                 </select>
+            </div>
+            <div id="adminPasswordFields" class="mb-4 hidden">
+                <div class="mb-3">
+                    <label class="block text-sm font-medium text-gray-700">Set/Reset Password (required for Admin roles)</label>
+                    <input type="password" name="password" id="editUserNewPassword" class="border border-gray-300 rounded-lg px-3 py-2 w-full">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">Confirm Password</label>
+                    <input type="password" name="password_confirmation" id="editUserNewPasswordConfirm" class="border border-gray-300 rounded-lg px-3 py-2 w-full">
+                </div>
+                <p class="text-xs text-gray-500 mt-1">When changing role to School Admin or Super Admin, you must set a password for the account.</p>
             </div>
             <div class="mb-4">
                 <label class="block text-sm font-medium text-gray-700">Status</label>

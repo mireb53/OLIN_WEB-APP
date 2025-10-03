@@ -3,6 +3,7 @@
 use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\Auth\RegisterController;
 use App\Http\Controllers\Auth\SocialLoginController;
+use App\Http\Controllers\Auth\PasswordResetController;
 use App\Http\Controllers\Admin\AdminController;
 use App\Http\Controllers\Admin\TwoFactorController;
 use App\Http\Controllers\Admin\AdminAccountController;
@@ -32,6 +33,12 @@ Route::get('/', function () {
 Route::get('/login', [LoginController::class, 'showLoginForm'])->name('login');
 
 Route::post('/login', [LoginController::class, 'login']);
+
+// Password reset routes
+Route::get('/forgot-password', [PasswordResetController::class, 'requestForm'])->name('password.request');
+Route::post('/forgot-password', [PasswordResetController::class, 'sendResetLinkEmail'])->name('password.email');
+Route::get('/reset-password/{token}', [PasswordResetController::class, 'showResetForm'])->name('password.reset');
+Route::post('/reset-password', [PasswordResetController::class, 'reset'])->name('password.update');
 
 // Public registration disabled: only admins can create users
 Route::get('/instructor/register', function () {
@@ -182,6 +189,9 @@ Route::middleware(['auth:web', 'role:super_admin,school_admin', 'verified'])->gr
     Route::get('/admin/course-management/{course}/edit', [CourseManagementController::class, 'edit'])->name('admin.courseManagement.edit');
     Route::put('/admin/course-management/{course}', [CourseManagementController::class, 'update'])->name('admin.courseManagement.update');
     Route::delete('/admin/course-management/{course}', [CourseManagementController::class, 'destroy'])->name('admin.courseManagement.delete');
+    // Course-specific OTP endpoints
+    Route::post('/admin/course-management/{course}/request-otp', [CourseManagementController::class, 'requestCourseOtp'])->name('admin.courseManagement.request-otp');
+    Route::post('/admin/course-management/{course}/verify-otp', [CourseManagementController::class, 'verifyCourseOtp'])->name('admin.courseManagement.verify-otp');
     Route::get('/admin/course-management/find-instructor', [CourseManagementController::class, 'findInstructor'])->name('admin.courseManagement.findInstructor');
     Route::post('/admin/course-management/find-instructor', [CourseManagementController::class, 'findInstructor']);
     Route::post('/admin/course-management', [CourseManagementController::class, 'store'])->name('admin.courseManagement.store');

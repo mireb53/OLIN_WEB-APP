@@ -25,6 +25,8 @@ class User extends Authenticatable implements MustVerifyEmail
 
     protected $fillable = [
         'name',
+        'first_name',
+        'last_name',
         'email',
         'password',
         'role',
@@ -62,6 +64,14 @@ class User extends Authenticatable implements MustVerifyEmail
             'last_login_at' => 'datetime',
             'last_activity_at' => 'datetime',
         ];
+    }
+
+    public function getDisplayNameAttribute(): string
+    {
+        $full = trim(($this->first_name ? $this->first_name.' ' : '').($this->last_name ?? ''));
+        if ($full !== '') return $full;
+        $name = trim((string) $this->name);
+        return $name !== '' ? $name : (string) $this->email;
     }
 
     public function program()

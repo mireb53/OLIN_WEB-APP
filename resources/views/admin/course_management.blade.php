@@ -155,24 +155,23 @@
             @include('admin.courses.create-modal')
             @include('admin.courses.export-import-modal')
 
-            {{-- keep delete modal here for simplicity --}}
-            <div id="deleteModal" class="fixed inset-0 bg-black bg-opacity-50 hidden z-50 flex items-center justify-center">
+            {{-- keep delete modal here for simplicity (OTP-based) --}}
+            <div id="deleteModal" class="fixed inset-0 bg-black bg-opacity-50 hidden z-50 items-center justify-center">
                 <div class="bg-white rounded-2xl shadow-2xl p-6 max-w-md w-full mx-4 border-t-8 border-red-600 relative">
                     <div class="absolute -top-8 left-1/2 transform -translate-x-1/2 bg-red-600 text-white rounded-full w-14 h-14 flex items-center justify-center shadow-lg">
                         <i class="fas fa-exclamation-triangle fa-lg"></i>
                     </div>
                     <h3 class="text-xl font-bold mb-2 text-red-700 text-center mt-8">Delete Course</h3>
                     <p class="text-slate-600 mb-4 text-center">Are you sure you want to delete <span id="deleteCourseTitle" class="font-bold"></span>? This action cannot be undone.</p>
-                    <div id="deleteStep1">
-                        <button onclick="request2FACode()" class="w-full bg-gradient-to-r from-red-600 to-red-400 text-white font-bold py-2 px-4 rounded-lg mb-2">Send Verification Code to Email</button>
-                        <button onclick="closeDeleteModal()" class="w-full bg-gray-100 text-gray-800 py-2 px-4 rounded-lg">Cancel</button>
+                    <div id="deleteStep1" class="mt-1">
+                        <button onclick="requestDeleteOtp()" class="w-full bg-gradient-to-r from-red-600 to-red-400 text-white font-semibold py-2 rounded-lg">Send Verification Code to Instructor Email</button>
                     </div>
                     <div id="deleteStep2" class="hidden mt-3">
                         <label class="block text-slate-700 font-semibold mb-2">Enter Verification Code</label>
-                        <input type="text" id="twoFACodeInput" class="w-full px-4 py-2 border rounded-lg mb-4 focus:outline-none focus:ring-2 focus:ring-red-600" placeholder="Enter code">
-                        <div id="twoFAError" class="text-red-500 mt-2 text-center"></div>
-                        <div class="flex gap-2">
-                            <button onclick="submit2FACode()" class="flex-1 bg-gradient-to-r from-red-600 to-red-400 text-white py-2 rounded-lg">Verify & Delete</button>
+                        <input type="text" id="deleteOtpInput" class="w-full px-4 py-2 border rounded-lg mb-2 focus:outline-none focus:ring-2 focus:ring-red-600" placeholder="Enter code">
+                        <div id="deleteError" class="text-red-500 mt-1 text-center"></div>
+                        <div class="flex gap-2 mt-4">
+                            <button onclick="performCourseDelete()" class="flex-1 bg-gradient-to-r from-red-600 to-red-400 text-white py-2 rounded-lg">Verify & Delete</button>
                             <button onclick="closeDeleteModal()" class="flex-1 bg-gray-100 text-gray-800 py-2 rounded-lg">Cancel</button>
                         </div>
                     </div>
@@ -317,59 +316,83 @@
             function confirmDelete(courseId, courseTitle) {
                 deleteCourseId = courseId;
                 document.getElementById('deleteCourseTitle').textContent = courseTitle;
-                document.getElementById('deleteStep1').classList.remove('hidden');
-                document.getElementById('deleteStep2').classList.add('hidden');
-                document.getElementById('twoFAError').textContent = '';
-                document.getElementById('deleteModal').classList.remove('hidden');
+                const input = document.getElementById('deleteOtpInput');
+                const err = document.getElementById('deleteError');
+                if (input) input.value = '';
+                if (err) err.textContent = '';
+                const s1 = document.getElementById('deleteStep1');
+                const s2 = document.getElementById('deleteStep2');
+                if (s1) s1.classList.remove('hidden');
+                if (s2) s2.classList.add('hidden');
+                const modal = document.getElementById('deleteModal');
+                modal.classList.remove('hidden');
+                modal.classList.add('flex');
             }
             function closeDeleteModal() {
-                document.getElementById('deleteModal').classList.add('hidden');
+                const modal = document.getElementById('deleteModal');
+                modal.classList.add('hidden');
+                modal.classList.remove('flex');
                 deleteCourseId = null;
-                if (document.getElementById('twoFACodeInput')) document.getElementById('twoFACodeInput').value = '';
-                document.getElementById('twoFAError').textContent = '';
+                const input = document.getElementById('deleteOtpInput');
+                const err = document.getElementById('deleteError');
+                if (input) input.value = '';
+                if (err) err.textContent = '';
+                const s1 = document.getElementById('deleteStep1');
+                const s2 = document.getElementById('deleteStep2');
+                if (s1) s1.classList.remove('hidden');
+                if (s2) s2.classList.add('hidden');
+            }
+            // Course-specific OTP for delete
+            function requestDeleteOtp(){
+                if(!deleteCourseId) return;
+                const err = document.getElementById('deleteError');
+                if (err) err.textContent = '';
+                fetch(`{{ url('/admin/course-management') }}/${deleteCourseId}/request-otp`, { method:'POST', headers: CSRF_HEADERS, credentials:'same-origin' })
+                    .then(r=>r.json())
+                    .then(d=>{
+                        if(d.success){
+                            document.getElementById('deleteStep1').classList.add('hidden');
+                            document.getElementById('deleteStep2').classList.remove('hidden');
+                        } else {
+                            if(err) err.textContent = d.message || 'Unable to send verification code.';
+                        }
+                    })
+                    .catch(()=>{ if(err) err.textContent = 'Error sending verification code.'; });
             }
 
-            function request2FACode() {
-                fetch(`{{ route('admin.request2fa') }}`, { method: 'POST', headers: CSRF_HEADERS, credentials: 'same-origin' })
-                .then(r => r.json())
-                .then(data => {
-                    if (data.success) {
-                        document.getElementById('deleteStep1').classList.add('hidden');
-                        document.getElementById('deleteStep2').classList.remove('hidden');
-                    } else {
-                        document.getElementById('twoFAError').textContent = data.message || 'Unable to send code.';
-                    }
-                })
-                .catch(() => document.getElementById('twoFAError').textContent = 'Error sending code.');
-            }
-
-            function submit2FACode() {
-                const code = document.getElementById('twoFACodeInput').value;
-                fetch(`{{ route('admin.verify2fa') }}`, { method: 'POST', headers: CSRF_HEADERS, body: JSON.stringify({ code }), credentials: 'same-origin' })
-                .then(r => r.json())
-                .then(data => {
-                    if (data.success) {
+            function performCourseDelete() {
+                const code = document.getElementById('deleteOtpInput')?.value?.trim();
+                const err = document.getElementById('deleteError');
+                if (!code) { if(err) err.textContent = 'Please enter the verification code.'; return; }
+                // verify OTP for this course first
+                fetch(`{{ url('/admin/course-management') }}/${deleteCourseId}/verify-otp`, { method:'POST', headers: CSRF_HEADERS, body: JSON.stringify({ code }), credentials:'same-origin' })
+                    .then(r=>r.json())
+                    .then(d=>{
+                        if(!d.success){ if(err) err.textContent = d.message || 'Invalid or expired code.'; return; }
                         // perform deletion
                         fetch(`{{ url('/admin/course-management') }}/${deleteCourseId}`, { method: 'DELETE', headers: CSRF_HEADERS, credentials: 'same-origin' })
-                        .then(r => r.json())
-                        .then(resp => { 
-                            if (resp.success) {
-                                const row = document.querySelector(`tr[data-course-id='${deleteCourseId}']`);
-                                if(row){
-                                    row.classList.add('opacity-0','transition','duration-300');
-                                    setTimeout(()=>{ row.remove(); updateAfterRowChange && updateAfterRowChange(); },300);
+                            .then(async r => {
+                                const ct = r.headers.get('content-type') || '';
+                                if (ct.includes('application/json')) {
+                                    try { return await r.json(); } catch { return { success: r.ok }; }
                                 }
-                                closeDeleteModal();
-                            } else {
-                                document.getElementById('twoFAError').textContent = 'Delete failed.';
-                            }
-                        })
-                        .catch(() => document.getElementById('twoFAError').textContent = 'Delete failed.');
-                    } else {
-                        document.getElementById('twoFAError').textContent = data.message || 'Invalid code.';
-                    }
-                })
-                .catch(() => document.getElementById('twoFAError').textContent = 'Error verifying code.');
+                                return { success: r.ok };
+                            })
+                            .then(resp => {
+                                if (resp && resp.success) {
+                                    const row = document.querySelector(`tr[data-course-id='${deleteCourseId}']`);
+                                    if (row) {
+                                        row.classList.add('opacity-0','transition','duration-300');
+                                        setTimeout(()=>{ row.remove(); window.updateAfterRowChange && window.updateAfterRowChange(); },300);
+                                    }
+                                    closeDeleteModal();
+                                } else {
+                                    if (err) err.textContent = resp.message || 'Delete failed.';
+                                }
+                            })
+                            .catch(() => { if (err) err.textContent = 'Delete failed.'; });
+                    })
+                    .catch(()=>{ if(err) err.textContent = 'Error verifying code.'; });
             }
 
             // View / Edit modal wiring (modal markup lives in partials)
@@ -439,7 +462,8 @@
             // ...chooseView removed; modal now contains a "View Full Page" button
 
             function requestEdit2FACode() {
-                fetch(`{{ route('admin.request2fa') }}`, { method: 'POST', headers: CSRF_HEADERS, credentials: 'same-origin' })
+                if(!editingCourseId) return;
+                fetch(`{{ url('/admin/course-management') }}/${editingCourseId}/request-otp`, { method: 'POST', headers: CSRF_HEADERS, credentials: 'same-origin' })
                 .then(r => r.json())
                 .then(data => {
                     if (data.success) {
@@ -506,7 +530,7 @@
                 if (saveBtn) {
                     saveBtn.addEventListener('click', function () {
                         const code = document.getElementById('modalEdit2FACodeInput').value;
-                        fetch(`{{ route('admin.verify2fa') }}`, { method: 'POST', headers: CSRF_HEADERS, body: JSON.stringify({ code }), credentials: 'same-origin' })
+                        fetch(`{{ url('/admin/course-management') }}/${editingCourseId}/verify-otp`, { method: 'POST', headers: CSRF_HEADERS, body: JSON.stringify({ code }), credentials: 'same-origin' })
                         .then(r => r.json())
                         .then(data => {
                             if (data.success) {

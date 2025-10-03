@@ -288,8 +288,9 @@ class InstructorController extends Controller
     {
         $user = Auth::user();
         
-        $request->validate([
-            'name' => 'required|string|max:255',
+        $validated = $request->validate([
+            'first_name' => 'required|string|max:255',
+            'last_name'  => 'required|string|max:255',
             'title' => 'nullable|string|max:100',
             'department' => 'nullable|string|max:100',
             'phone' => 'nullable|string|max:20',
@@ -299,15 +300,20 @@ class InstructorController extends Controller
             'address' => 'nullable|string|max:500',
         ]);
 
+        // Compose legacy 'name' while storing first_name/last_name explicitly
+        $composedName = trim(($validated['first_name'] ?? '').' '.($validated['last_name'] ?? ''));
+
         $user->update([
-            'name' => $request->name,
-            'title' => $request->title,
-            'department' => $request->department,
-            'phone' => $request->phone,
-            'birth_date' => $request->birth_date,
-            'gender' => $request->gender,
-            'bio' => $request->bio,
-            'address' => $request->address,
+            'name' => $composedName,
+            'first_name' => $validated['first_name'],
+            'last_name' => $validated['last_name'],
+            'title' => $request->input('title'),
+            'department' => $request->input('department'),
+            'phone' => $request->input('phone'),
+            'birth_date' => $request->input('birth_date'),
+            'gender' => $request->input('gender'),
+            'bio' => $request->input('bio'),
+            'address' => $request->input('address'),
         ]);
 
         return redirect()->route('instructor.showProfile')

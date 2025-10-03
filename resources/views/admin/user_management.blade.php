@@ -183,6 +183,8 @@
                                         data-user-email="{{ $user->email }}"
                                         data-user-role="{{ $user->role }}"
                                         data-user-status="{{ $user->status }}"
+                                        data-user-first="{{ $user->first_name }}"
+                                        data-user-last="{{ $user->last_name }}"
                                     >
                                         Edit
                                     </button>
@@ -271,6 +273,26 @@ document.addEventListener('DOMContentLoaded', function () {
             document.getElementById('editUserEmail').value = userEmail;
             document.getElementById('editUserRole').value = userRole;
             document.getElementById('editUserStatus').value = userStatus;
+            // First/Last names if present as data attrs; fallback empty
+            const fn = button.getAttribute('data-user-first') || '';
+            const ln = button.getAttribute('data-user-last') || '';
+            const fnEl = document.getElementById('editUserFirstName');
+            const lnEl = document.getElementById('editUserLastName');
+            if (fnEl) fnEl.value = fn;
+            if (lnEl) lnEl.value = ln;
+            // Toggle admin password fields visibility based on current role
+            const adminPwdFields = document.getElementById('adminPasswordFields');
+            const np = document.getElementById('editUserNewPassword');
+            const npc = document.getElementById('editUserNewPasswordConfirm');
+            if (['school_admin','super_admin'].includes(userRole)) {
+                adminPwdFields.classList.remove('hidden');
+                if (np) np.required = true;
+                if (npc) npc.required = true;
+            } else {
+                adminPwdFields.classList.add('hidden');
+                if (np) np.required = false;
+                if (npc) npc.required = false;
+            }
             modal.classList.remove('hidden');
         });
     });
@@ -306,6 +328,25 @@ document.addEventListener('DOMContentLoaded', function () {
         addUserRoleSelect.addEventListener('change', function() {
             if (this.value === 'student') bulkImportOption.classList.remove('hidden');
             else bulkImportOption.classList.add('hidden');
+        });
+    }
+    // Change listener for role to toggle admin password fields in edit modal
+    const editRoleSelect = document.getElementById('editUserRole');
+    if (editRoleSelect) {
+        editRoleSelect.addEventListener('change', function() {
+            const adminPwdFields = document.getElementById('adminPasswordFields');
+            const np = document.getElementById('editUserNewPassword');
+            const npc = document.getElementById('editUserNewPasswordConfirm');
+            if (['school_admin','super_admin'].includes(this.value)) {
+                adminPwdFields.classList.remove('hidden');
+                if (np) np.required = true;
+                if (npc) npc.required = true;
+            } else {
+                adminPwdFields.classList.add('hidden');
+                // Clear and un-require when not needed
+                if (np) { np.value = ''; np.required = false; }
+                if (npc) { npc.value = ''; npc.required = false; }
+            }
         });
     }
 });

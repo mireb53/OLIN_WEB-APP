@@ -12,6 +12,8 @@ use Illuminate\Support\Facades\Session;
 use App\Models\Program;
 use App\Models\User;
 use Illuminate\Support\Str;
+use Illuminate\Support\Facades\Mail;
+use App\Mail\AdminVerificationCode;
 use ZipArchive;
 
 class CourseManagementController extends Controller
@@ -270,6 +272,18 @@ class CourseManagementController extends Controller
                 $q->whereHas('instructor', function($iq) use ($activeSchoolId){ $iq->where('school_id', $activeSchoolId); });
             })
             ->findOrFail($courseId);
+
+        // Require course-specific OTP verification before allowing updates
+        $verifiedKey = 'course_2fa_verified_'.$course->id;
+        $verifiedAtKey = 'course_2fa_verified_at_'.$course->id;
+        $verified = (bool) session($verifiedKey);
+        $verifiedAt = session($verifiedAtKey);
+        if (!$verified || ($verifiedAt && now()->diffInMinutes($verifiedAt) > 10)) { // 10-minute window
+            if ($request->wantsJson() || $request->ajax()) {
+                return response()->json(['success' => false, 'message' => 'Verification required. Please request and enter the code sent to the instructor.'], 403);
+            }
+            return redirect()->back()->with('error', 'Verification required.');
+        }
         $validated = $request->validate([
             'title' => 'required|string|max:255',
             'course_code' => 'required|string|max:50|unique:courses,course_code,' . $course->id,
@@ -294,6 +308,9 @@ class CourseManagementController extends Controller
         $course->fill($validated);
         $course->save();
 
+        // Clear course OTP verification after successful update
+        session()->forget([$verifiedKey, $verifiedAtKey]);
+
         if ($request->wantsJson() || $request->ajax()) {
             return response()->json(['success' => true, 'course' => $course->fresh(['program','instructor'])]);
         }
@@ -307,8 +324,103 @@ class CourseManagementController extends Controller
                 $q->whereHas('instructor', function($iq) use ($activeSchoolId){ $iq->where('school_id', $activeSchoolId); });
             })
             ->findOrFail($courseId);
+
+        // Require course-specific OTP verification before allowing deletion
+        $verifiedKey = 'course_2fa_verified_'.$course->id;
+        $verifiedAtKey = 'course_2fa_verified_at_'.$course->id;
+        $verified = (bool) session($verifiedKey);
+        $verifiedAt = session($verifiedAtKey);
+        if (!$verified || ($verifiedAt && now()->diffInMinutes($verifiedAt) > 10)) {
+            return response()->json(['success' => false, 'message' => 'Verification required. Please request and enter the code sent to the instructor.'], 403);
+        }
         $course->delete();
+        // Clear verification after destructive action
+        session()->forget([$verifiedKey, $verifiedAtKey]);
         return response()->json(['success' => true]);
+    }
+
+    /**
+     * Send a one-time verification code to the course instructor's email for sensitive actions.
+     */
+    public function requestCourseOtp(Request $request, $courseId)
+    {
+        $activeSchoolId = $this->getActiveSchoolId();
+        $course = Course::with('instructor')
+            ->when($activeSchoolId, function($q) use ($activeSchoolId){
+                $q->whereHas('instructor', function($iq) use ($activeSchoolId){ $iq->where('school_id', $activeSchoolId); });
+            })
+            ->findOrFail($courseId);
+
+        $instructor = $course->instructor;
+        if (!$instructor || empty($instructor->email)) {
+            return response()->json(['success' => false, 'message' => 'Instructor email not available.'], 422);
+        }
+
+        $code = rand(100000, 999999);
+        // Store in session with expiry and scope to this course
+        session([
+            'course_2fa_code_'.$course->id => (string) $code,
+            'course_2fa_expires_'.$course->id => now()->addMinutes(5)->addSeconds(5),
+        ]);
+
+        // Persist to instructor record to allow DB verification fallback
+        $instructor->forceFill([
+            'email_verification_code' => (string) $code,
+            'email_verification_code_expires_at' => now()->addMinutes(5)->addSeconds(5),
+        ])->save();
+
+        try {
+            Mail::to($instructor->email)->send(new AdminVerificationCode($code, $instructor));
+        } catch (\Throwable $e) {
+            \Log::error('Failed to send course OTP mail: '.$e->getMessage());
+            // Still return success in dev if mail fails? Better return error so UI can inform user.
+            return response()->json(['success' => false, 'message' => 'Unable to send verification email. Please try again.'], 500);
+        }
+
+        return response()->json(['success' => true]);
+    }
+
+    /**
+     * Verify the course-specific OTP code entered by the admin.
+     */
+    public function verifyCourseOtp(Request $request, $courseId)
+    {
+        $request->validate(['code' => 'required|string']);
+        $activeSchoolId = $this->getActiveSchoolId();
+        $course = Course::with('instructor')
+            ->when($activeSchoolId, function($q) use ($activeSchoolId){
+                $q->whereHas('instructor', function($iq) use ($activeSchoolId){ $iq->where('school_id', $activeSchoolId); });
+            })
+            ->findOrFail($courseId);
+
+        $inputCode = (string) $request->input('code');
+        $sessionCode = (string) session('course_2fa_code_'.$course->id);
+        $sessionExpires = session('course_2fa_expires_'.$course->id);
+        $instructor = $course->instructor;
+
+        $sessionValid = $sessionCode && $sessionExpires && now()->lt($sessionExpires) && hash_equals($sessionCode, $inputCode);
+        $dbValid = false;
+        if ($instructor) {
+            $dbCode = (string) ($instructor->email_verification_code ?? '');
+            $dbExpires = $instructor->email_verification_code_expires_at;
+            $dbValid = $dbCode !== '' && $dbExpires && now()->lt($dbExpires) && hash_equals($dbCode, $inputCode);
+        }
+
+        if ($sessionValid || $dbValid) {
+            // clear session code and mark verified for this course
+            session()->forget(['course_2fa_code_'.$course->id, 'course_2fa_expires_'.$course->id]);
+            session(['course_2fa_verified_'.$course->id => true, 'course_2fa_verified_at_'.$course->id => now()]);
+            // clear instructor DB code to prevent reuse
+            if ($instructor) {
+                $instructor->forceFill([
+                    'email_verification_code' => null,
+                    'email_verification_code_expires_at' => null,
+                ])->save();
+            }
+            return response()->json(['success' => true]);
+        }
+
+        return response()->json(['success' => false, 'message' => 'Invalid or expired code.'], 422);
     }
 
     /**

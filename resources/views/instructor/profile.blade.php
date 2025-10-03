@@ -1053,6 +1053,66 @@
             }
         </style>
 
+        <!-- Minimal styles to mirror admin account layout for the profile section -->
+        <style>
+            .profile-card { /* card container similar to admin */
+                background: #ffffff;
+                border: 1px solid #e5e7eb;
+                border-radius: 1rem;
+                padding: 2rem;
+                box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -2px rgba(0,0,0,0.05);
+                margin-bottom: 2rem;
+            }
+            .section-title { /* heading style similar to admin */
+                font-weight: 800;
+                font-size: 1.5rem;
+                color: #111827;
+                margin: 0 0 1.25rem 0;
+                display: flex;
+                align-items: center;
+                gap: .5rem;
+            }
+            .profile-form-grid { /* form grid like admin */
+                display: grid;
+                grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+                gap: 1.25rem 1.5rem;
+                align-content: start;
+            }
+            .profile-actions {
+                margin-top: 1.5rem;
+                text-align: right;
+            }
+            /* reuse existing left panel visuals while using admin-like class name */
+            .profile-avatar-section {
+                text-align: center;
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                padding: 2rem;
+                border-radius: 1.5rem;
+                color: white;
+                box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+            }
+            @media (max-width: 768px) {
+                .profile-form-grid { grid-template-columns: 1fr; }
+            }
+
+            /* Instructor badge and photo actions (admin-like) */
+            .instructor-badge {
+                display: inline-flex; align-items: center; gap: .5rem;
+                padding: .45rem .95rem; border-radius: 9999px;
+                background: #ef4444; color: #fff; font-weight: 800; font-size: .8rem;
+                letter-spacing: .06em; box-shadow: 0 8px 20px rgba(239,68,68,.35);
+            }
+            .btn-photo-outline {
+                background: #ffffff !important; color: #111827 !important;
+                border: 2px solid #e5e7eb !important; padding: .75rem 1.25rem !important;
+                border-radius: .75rem !important; font-weight: 600 !important;
+                display: inline-flex !important; align-items: center !important; gap: .5rem !important;
+                box-shadow: 0 1px 2px rgba(0,0,0,.06) !important;
+            }
+            .btn-photo-outline:hover { background: #f9fafb !important; }
+            .btn-delete-link { color: #ef4444; font-weight: 600; text-decoration: underline; }
+        </style>
+
         <script>
             document.addEventListener('DOMContentLoaded', function() {
                 // Helper to build a public URL that works when the app is hosted under a subfolder
@@ -1537,10 +1597,9 @@
 
     <!-- Instructor Account Management Page -->
     <div class="profile-page-wrapper">
-    <div class="mb-8">
+                <div class="mt-2">
         <h1 class="text-3xl font-bold text-gray-900 mb-1">My Account</h1>
         <p class="text-gray-600 text-lg">Manage your profile, preferences, and account settings.</p>
-    </div>
 
 <!-- Flash Messages -->
 @if(session('success'))
@@ -1571,143 +1630,108 @@
     <span id="successText">Profile updated successfully!</span>
 </div>
 
-<!-- A. MY PROFILE SECTION -->
-<section class="bg-white rounded-2xl shadow-xl p-8 mb-8 border border-gray-200">
-    <h2 class="text-2xl font-bold text-gray-900 mb-6 flex items-center">
-        <i class="fas fa-user-circle text-blue-600 mr-3"></i>
-        My Profile
-    </h2>
-    
-    <div class="profile-content">
-        <!-- Profile Photo Section -->
-        <div class="profile-photo-section">
+<!-- A. MY PROFILE SECTION (mirrors admin layout) -->
+<section class="profile-card">
+    <h2 class="section-title">👨‍🏫 Instructor Profile</h2>
+
+    @php
+        $instructor = Auth::user();
+        $firstNameVal = old('first_name', $instructor->first_name ?? (explode(' ', $instructor->name, 2)[0] ?? ''));
+        $lastNameVal = old('last_name', $instructor->last_name ?? (explode(' ', $instructor->name, 2)[1] ?? ''));
+    @endphp
+
+    <form id="profileForm" action="{{ route('instructor.updateProfile') }}" method="POST" class="profile-content">
+        @csrf
+        @method('PUT')
+
+        <!-- Avatar/left column -->
+        <div class="profile-avatar-section">
             <div class="photo-container">
                 <div class="profile-photo" id="profilePhotoContainer">
                     @php
-                        $profileImageUrl = Auth::user()->profile_image 
-                            ? route('media.profile', ['filename' => basename(Auth::user()->profile_image)])
+                        $profileImageUrl = $instructor->profile_image 
+                            ? route('media.profile', ['filename' => basename($instructor->profile_image)])
                             : null;
                     @endphp
-                    @if(Auth::user()->profile_image)
+                    @if($instructor->profile_image)
                         <img src="{{ $profileImageUrl }}" alt="Profile Photo" class="profile-img" id="profileImg">
                     @else
                         <div class="profile-img bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-4xl font-bold">
-                            {{ strtoupper(substr(Auth::user()->name, 0, 1)) }}
+                            {{ strtoupper(substr($instructor->name, 0, 1)) }}
                         </div>
                     @endif
                     <div class="photo-overlay">
                         <i class="fas fa-camera"></i>
                     </div>
                 </div>
-                <h3 class="text-xl font-semibold text-gray-800 mt-4">{{ Auth::user()->name }}</h3>
-                <p class="text-white-600">{{ Auth::user()->title ?? 'Instructor' }} • {{ Auth::user()->department ?? 'OLIN System' }}</p>
-                <p class="text-sm text-white-500 mt-2">Member since {{ Auth::user()->created_at->format('F Y') }}</p>
-                <div class="flex items-center justify-center space-x-4 mt-4">
-                    <button id="changePhotoBtn" class="change-photo-btn">
-                        <i class="fas fa-camera mr-2"></i>
+                <h3 class="text-xl font-semibold text-white mt-4">{{ $instructor->name }}</h3>
+                <div class="mt-2">
+                    <span class="instructor-badge"><i class="fas fa-chalkboard-teacher"></i> INSTRUCTOR</span>
+                </div>
+                <!-- <p class="text-white/90 mt-3">{{ $instructor->title ?? 'Instructor' }}@if(!empty($instructor->department)) • {{ $instructor->department }} @endif</p> -->
+
+                <div class="flex flex-col items-center gap-2 mt-4">
+                    <button id="changePhotoBtn" type="button" class="btn-photo-outline">
+                        <i class="fas fa-pen"></i>
                         Change Photo
                     </button>
-
-                    {{-- This button only appears if a profile image exists --}}
-                    @if(Auth::user()->profile_image)
-                        <button id="deletePhotoBtn" class="change-photo-btn" style="background: linear-gradient(135deg, #EF4444, #DC2626);">
-                            <i class="fas fa-trash-alt mr-2"></i>
-                            Delete
-                        </button>
+                    @if($instructor->profile_image)
+                        <button id="deletePhotoBtn" type="button" class="btn-delete-link">Delete Photo</button>
                     @endif
                 </div>
             </div>
         </div>
 
-        <!-- Profile Information Form -->
-        <div class="profile-form">
-            <form id="profileForm" action="{{ route('instructor.updateProfile') }}" method="POST">
-                @csrf
-                @method('PUT')
-                
-                <div class="form-row">
-                    <div class="form-group">
-                        <label for="name" class="form-label">Full Name</label>
-                        <input type="text" id="name" name="name" class="form-input" value="{{ Auth::user()->name }}" required>
-                        <div class="field-validation" id="nameValidation"></div>
-                    </div>
+        <!-- Fields/right column using admin-like grid -->
+        <div class="profile-form-grid">
+            <div class="form-group">
+                <label for="first_name">First Name:</label>
+                <input type="text" id="first_name" name="first_name" value="{{ $firstNameVal }}" class="form-input" required>
+            </div>
+            <div class="form-group">
+                <label for="last_name">Last Name:</label>
+                <input type="text" id="last_name" name="last_name" value="{{ $lastNameVal }}" class="form-input" required>
+            </div>
+            <div class="form-group">
+                <label for="email">Email Address:</label>
+                <input type="email" id="email" value="{{ $instructor->email }}" class="form-input readonly" disabled>
+                <small class="field-note">Contact admin to change your email address</small>
+            </div>
+            <div class="form-group">
+                <label for="role">Role:</label>
+                <input type="text" id="role" value="{{ ucfirst($instructor->role) }}" class="form-input readonly" disabled>
+            </div>
+            <div class="form-group">
+                <label for="last_login">Last Login:</label>
+                <input type="text" id="last_login" value="{{ $instructor && $instructor->last_login_at ? $instructor->last_login_at->format('F d, Y h:i A') : 'N/A' }}" class="form-input readonly" disabled>
+            </div>
+            <div class="form-group">
+                <label for="member_since">Account Created:</label>
+                <input type="text" id="member_since" value="{{ $instructor?->created_at ? $instructor->created_at->format('F d, Y h:i A') : '' }}" class="form-input readonly" disabled>
+            </div>
+            <div class="form-group">
+                <label for="phone">Phone Number:</label>
+                <input type="tel" id="phone" name="phone" value="{{ old('phone', $instructor->phone) }}" class="form-input" placeholder="e.g., +63 912 345 6789">
+            </div>
+            <div class="form-group">
+                <label for="address">Address:</label>
+                <input type="text" id="address" name="address" value="{{ old('address', $instructor->address) }}" class="form-input" placeholder="Your current address...">
+            </div>
 
-                    <div class="form-group">
-                        <label for="email" class="form-label">Email Address</label>
-                        <input type="email" id="email" name="email" class="form-input readonly" value="{{ Auth::user()->email }}" readonly>
-                        <small class="field-note">Contact admin to change your email address</small>
-                    </div>
-                </div>
-
-                <div class="form-row">
-                    <!-- <div class="form-group">
-                        <label for="title" class="form-label">Title/Position</label>
-                        <select id="title" name="title" class="form-input">
-                            <option value="">Select Title</option>
-                            <option value="Instructor" {{ Auth::user()->title == 'Instructor' ? 'selected' : '' }}>Instructor</option>
-                            <option value="Assistant Professor" {{ Auth::user()->title == 'Assistant Professor' ? 'selected' : '' }}>Assistant Professor</option>
-                            <option value="Associate Professor" {{ Auth::user()->title == 'Associate Professor' ? 'selected' : '' }}>Associate Professor</option>
-                            <option value="Professor" {{ Auth::user()->title == 'Professor' ? 'selected' : '' }}>Professor</option>
-                            <option value="Lecturer" {{ Auth::user()->title == 'Lecturer' ? 'selected' : '' }}>Lecturer</option>
-                            <option value="Senior Lecturer" {{ Auth::user()->title == 'Senior Lecturer' ? 'selected' : '' }}>Senior Lecturer</option>
-                        </select>
-                    </div> -->
-
-                    <div class="form-group">
-                        <label for="department" class="form-label">Department</label>
-                        <input type="text" id="department" name="department" class="form-input" value="{{ Auth::user()->department }}" placeholder="e.g., Computer Science">
-                    </div>
-                </div>
-
-                <div class="form-row">
-                    <div class="form-group">
-                        <label for="phone" class="form-label">Phone Number</label>
-                        <input type="tel" id="phone" name="phone" class="form-input" value="{{ Auth::user()->phone }}" placeholder="+1 (555) 123-4567">
-                    </div>
-
-                    <div class="form-group">
-                        <label for="birth_date" class="form-label">Birth Date</label>
-                        <input type="date" id="birth_date" name="birth_date" class="form-input" value="{{ Auth::user()->birth_date ? Auth::user()->birth_date->format('Y-m-d') : '' }}">
-                    </div>
-                </div>
-
-                <div class="form-row">
-                    <div class="form-group">
-                        <label for="gender" class="form-label">Gender</label>
-                        <select id="gender" name="gender" class="form-input">
-                            <option value="">Select Gender</option>
-                            <option value="Male" {{ Auth::user()->gender == 'Male' ? 'selected' : '' }}>Male</option>
-                            <option value="Female" {{ Auth::user()->gender == 'Female' ? 'selected' : '' }}>Female</option>
-                            <option value="Other" {{ Auth::user()->gender == 'Other' ? 'selected' : '' }}>Other</option>
-                            <option value="Prefer not to say" {{ Auth::user()->gender == 'Prefer not to say' ? 'selected' : '' }}>Prefer not to say</option>
-                        </select>
-                    </div>
-
-                    <div class="form-group">
-                        <label for="role" class="form-label">Role</label>
-                        <input type="text" id="role" name="role" class="form-input readonly" value="{{ ucfirst(Auth::user()->role) }}" readonly>
-                    </div>
-                </div>
-
-                <div class="form-group">
-                    <label for="bio" class="form-label">Biography</label>
-                    <textarea id="bio" name="bio" class="form-input" rows="4" placeholder="Tell us about yourself, your expertise, and teaching philosophy...">{{ Auth::user()->bio }}</textarea>
-                </div>
-
-                <div class="form-group">
-                    <label for="address" class="form-label">Address</label>
-                    <textarea id="address" name="address" class="form-input" rows="3" placeholder="Your current address...">{{ Auth::user()->address }}</textarea>
-                </div>
-
-                <div class="form-actions">
-                    <button type="submit" id="saveProfileBtn" class="save-btn">
-                        <i class="fas fa-save mr-2"></i>
-                        Save Changes
-                    </button>
-                </div>
-            </form>
+            <!-- Biography full width -->
+            <div class="form-group" style="grid-column: 1 / -1;">
+                <label for="bio">Biography:</label>
+                <textarea id="bio" name="bio" rows="4" class="form-input" placeholder="Tell us about yourself, your expertise, and teaching philosophy...">{{ old('bio', $instructor->bio) }}</textarea>
+            </div>
         </div>
-    </div>
+
+        <div class="profile-actions">
+            <button type="submit" id="saveProfileBtn" class="save-btn">
+                <i class="fas fa-save mr-2"></i>
+                Save Profile Changes
+            </button>
+        </div>
+    </form>
 </section>
 
 <!-- B. SETTINGS SECTION -->

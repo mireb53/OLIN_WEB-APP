@@ -162,14 +162,14 @@
 
                 @if (Auth::user()->last_login_at == null)
                     <p class="mt-2 text-lg text-gray-600">
-                        Welcome aboard, 
-                        <span class="font-semibold text-blue-600">{{ Auth::user()->name }}</span>! 
+                            Welcome aboard, 
+                            <span class="font-semibold text-blue-600">{{ Auth::user()->first_name ?: (Auth::user()->name ?: Auth::user()->email) }}</span>! 
                         Let’s get started.
                     </p>
                 @else
                     <p class="mt-2 text-lg text-gray-600">
                         Welcome back, 
-                        <span class="font-semibold text-blue-600">{{ Auth::user()->name }}</span>! 
+                            <span class="font-semibold text-blue-600">{{ Auth::user()->first_name ?: (Auth::user()->name ?: Auth::user()->email) }}</span>! 
                         Here’s your system overview.
                     </p>
                 @endif

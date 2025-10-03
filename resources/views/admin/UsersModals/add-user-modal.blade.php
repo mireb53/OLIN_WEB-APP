@@ -5,49 +5,47 @@
         <form id="addUserForm" action="{{ route('admin.users.store') }}" method="POST">
             @csrf
             <div class="mb-4">
-                <label class="block text-sm font-medium text-gray-700">Name</label>
-                <input type="text" name="name" class="border border-gray-300 rounded-lg px-3 py-2 w-full focus:outline-none focus:ring focus:border-indigo-500" required>
-            </div>
-            <div class="mb-4">
                 <label class="block text-sm font-medium text-gray-700">Email</label>
                 <input type="email" name="email" class="border border-gray-300 rounded-lg px-3 py-2 w-full focus:outline-none focus:ring focus:border-indigo-500" required>
             </div>
             <div class="mb-4">
                 <label class="block text-sm font-medium text-gray-700">Role</label>
-                <select name="role" id="addUserRole" class="border border-gray-300 rounded-lg px-3 py-2 w-full focus:outline-none focus:ring focus:border-indigo-500">
-                    <option value="instructor">Instructor</option>
+                <select name="role" id="addUserRole" class="border border-gray-300 rounded-lg px-3 py-2 w-full focus:outline-none focus:ring focus:border-indigo-500" required>
                     <option value="student">Student</option>
-                    <option value="school_admin">School Admin</option>
-                    @if(auth()->user()->isSuperAdmin())
-                    <option value="super_admin">Super Admin</option>
-                    @endif
+                    <option value="instructor">Instructor</option>
                 </select>
             </div>
-            @if(auth()->user()->isSuperAdmin())
             <div class="mb-4">
                 <label class="block text-sm font-medium text-gray-700">School</label>
-                <select name="school_id" class="border border-gray-300 rounded-lg px-3 py-2 w-full focus:outline-none focus:ring focus:border-indigo-500">
-                    <option value="">-- Select School --</option>
-                    @foreach($schools as $s)
-                        <option value="{{ $s->id }}" {{ $activeSchool && $activeSchool->id == $s->id ? 'selected' : '' }}>
-                            {{ $s->name }}
-                        </option>
-                    @endforeach
-                </select>
-                @if($activeSchool)
-                    <p class="text-xs text-gray-500 mt-1">
-                        Currently managing: <strong>{{ $activeSchool->name }}</strong>
-                    </p>
+                @if(auth()->user()->isSuperAdmin())
+                    <select name="school_id" class="border border-gray-300 rounded-lg px-3 py-2 w-full focus:outline-none focus:ring focus:border-indigo-500" required>
+                        <option value="">-- Select School --</option>
+                        @foreach($schools as $s)
+                            <option value="{{ $s->id }}" {{ $activeSchool && $activeSchool->id == $s->id ? 'selected' : '' }}>
+                                {{ $s->name }}
+                            </option>
+                        @endforeach
+                    </select>
+                    @if($activeSchool)
+                        <p class="text-xs text-gray-500 mt-1">
+                            Currently managing: <strong>{{ $activeSchool->name }}</strong>
+                        </p>
+                    @endif
+                @else
+                    <select name="school_id" class="border border-gray-300 rounded-lg px-3 py-2 w-full focus:outline-none focus:ring focus:border-indigo-500" disabled>
+                        @if(auth()->user()->school)
+                            <option value="{{ auth()->user()->school->id }}" selected>
+                                {{ auth()->user()->school->name }}
+                            </option>
+                        @else
+                            <option value="" selected>-- No School Assigned --</option>
+                        @endif
+                    </select>
+                    @if(auth()->user()->school)
+                        <input type="hidden" name="school_id" value="{{ auth()->user()->school->id }}">
+                    @endif
                 @endif
-            </div>
-            @endif
-            <div class="mb-4">
-                <label class="block text-sm font-medium text-gray-700">Password</label>
-                <input type="password" name="password" class="border border-gray-300 rounded-lg px-3 py-2 w-full focus:outline-none focus:ring focus:border-indigo-500" required>
-            </div>
-            <div class="mb-4">
-                <label class="block text-sm font-medium text-gray-700">Confirm Password</label>
-                <input type="password" name="password_confirmation" class="border border-gray-300 rounded-lg px-3 py-2 w-full focus:outline-none focus:ring focus:border-indigo-500" required>
+                <p class="text-xs text-gray-500 mt-1">No password required for Student/Instructor. They will use Google login. On their first Google login, name fields auto-sync from Google.</p>
             </div>
             <div class="flex justify-end space-x-2">
                 <button type="button" class="px-4 py-2 bg-gray-300 rounded-lg" data-modal-close>Cancel</button>
