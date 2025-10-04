@@ -1,5 +1,6 @@
-<div id="exportImportModal" class="fixed inset-0 bg-black bg-opacity-50 hidden z-50 flex items-center justify-center">
-  <div class="bg-white rounded-2xl shadow-2xl w-full max-w-xl mx-4 overflow-hidden">
+<div id="exportImportModal" role="dialog" aria-modal="true" class="fixed inset-0 bg-slate-900/30 backdrop-blur-sm hidden z-50">
+  <div class="min-h-screen w-full flex items-center justify-center p-4">
+  <div class="bg-white rounded-2xl shadow-2xl w-[92vw] max-w-lg sm:max-w-xl mx-4 overflow-hidden">
     <div class="flex items-center justify-between px-6 py-4 border-b border-gray-100 bg-gradient-to-r from-indigo-600 to-purple-600 text-white">
       <h3 class="text-lg font-semibold">Export / Import Courses</h3>
       <button onclick="closeExportImportModal()" class="p-2 rounded-lg hover:bg-white/20 transition"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg></button>
@@ -52,13 +53,15 @@
       </section>
     </div>
   </div>
+  </div>
 </div>
 
 <script>
   // Populate course select on first open (lazy load) using existing table + API fallback if needed
   let __EXPORT_SELECT_POPULATED__ = false;
+  const __coursesModal = document.getElementById('exportImportModal');
   function openExportImportModal(){
-    document.getElementById('exportImportModal').classList.remove('hidden');
+    __coursesModal.classList.remove('hidden');
     if(!__EXPORT_SELECT_POPULATED__) {
       const select = document.getElementById('exportCourseSelect');
       // Gather from current DOM first
@@ -73,7 +76,11 @@
       __EXPORT_SELECT_POPULATED__ = true;
     }
   }
-  function closeExportImportModal(){ document.getElementById('exportImportModal').classList.add('hidden'); }
+  function closeExportImportModal(){ __coursesModal.classList.add('hidden'); }
+  // Close on overlay click
+  __coursesModal.addEventListener('click', (e)=>{ if(e.target === __coursesModal){ closeExportImportModal(); } });
+  // Close on ESC
+  document.addEventListener('keydown', (e)=>{ if(e.key === 'Escape' && !__coursesModal.classList.contains('hidden')) closeExportImportModal(); });
   document.querySelectorAll('input[name="exportScope"]').forEach(r => {
     r.addEventListener('change', () => {
       const sel = document.getElementById('exportCourseSelect');

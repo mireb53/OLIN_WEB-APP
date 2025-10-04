@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Session;
 use Carbon\Carbon;
@@ -17,6 +18,14 @@ class AdminReportsController extends Controller
     public function index(Request $request)
     {
         $activeSchoolId = $this->getActiveSchoolId();
+
+        // Require Super Admin to manually select a school before viewing reports (no implicit default)
+        $user = Auth::user();
+        if ($user && method_exists($user, 'isSuperAdmin') && $user->isSuperAdmin() && is_null($activeSchoolId)) {
+            if (\App\Models\School::count() > 0) {
+                return redirect()->route('admin.settings')->with('info', 'Please select a school to view reports.');
+            }
+        }
         // allow selecting by instructor id and course id from modal
         $instructorId = $request->input('instructor_id');
         $courseFilterId = $request->input('course_id');
@@ -834,7 +843,7 @@ class AdminReportsController extends Controller
             ->limit(200)
             ->get();
 
-        return view('admin.reports.reports_logs', [
+    return view('admin.reports.reports_logs', [
             // Use global chart data so the graph doesn't change with filters
             'labels' => $chartLabels,
             'data' => $chartRegistrations,
@@ -889,7 +898,105 @@ class AdminReportsController extends Controller
             'selectedCourseName' => $selectedCourseName,
             'filtersApplied' => $filtersApplied,
             'failedLogins' => $failedLogins,
+            // System logs preview for initial render (rest loaded via AJAX)
+            'systemLogsPreview' => $this->readSystemLogs(1, 25),
         ]);
+    }
+
+    /**
+     * Parse application system log (storage/logs/laravel.log) in a lightweight way.
+     * Returns paginated structured entries. Designed to handle large files by tail-reading.
+     */
+    protected function readSystemLogs(int $page = 1, int $perPage = 25, ?string $level = null, ?string $search = null, ?string $date = null)
+    {
+        $logPath = storage_path('logs/laravel.log');
+        if (!File::exists($logPath)) {
+            return [ 'data' => [], 'total' => 0, 'page' => $page, 'perPage' => $perPage ];
+        }
+
+        $size = File::size($logPath);
+        $handle = fopen($logPath, 'r');
+        if (!$handle) {
+            return [ 'data' => [], 'total' => 0, 'page' => $page, 'perPage' => $perPage ];
+        }
+
+        // Read last ~1.5MB if file is huge (>5MB)
+        $maxRead = 1500 * 1024; // 1.5MB
+        if ($size > 5 * 1024 * 1024) {
+            fseek($handle, -min($maxRead, $size), SEEK_END);
+        }
+
+        $raw = '';
+        while (!feof($handle)) {
+            $raw .= fread($handle, 8192) ?: '';
+        }
+        fclose($handle);
+
+        $lines = preg_split('/\r?\n/', $raw);
+        $entries = [];
+        $current = null;
+        foreach ($lines as $line) {
+            if (preg_match('/^\[(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})\]\s+(\w+)\.(\w+):\s*(.*)$/', $line, $m)) {
+                // New entry start
+                if ($current) { $entries[] = $current; }
+                $current = [
+                    'timestamp' => $m[1],
+                    'env' => $m[2] ?? null,
+                    'level' => strtolower($m[3] ?? ''),
+                    'message' => $m[4] ?? '',
+                    'context' => '',
+                ];
+            } else {
+                if ($current) {
+                    $current['context'] .= ($current['context'] === '' ? '' : "\n").$line;
+                }
+            }
+        }
+        if ($current) { $entries[] = $current; }
+
+        // Filter
+        $entries = array_values(array_filter($entries, function($e) use ($level, $search, $date) {
+            if ($level && strtolower($e['level']) !== strtolower($level)) return false;
+            if ($search) {
+                $hay = strtolower(($e['message'] ?? '')."\n".($e['context'] ?? ''));
+                if (strpos($hay, strtolower($search)) === false) return false;
+            }
+            if ($date) {
+                if (strpos($e['timestamp'], $date) !== 0) return false;
+            }
+            return true;
+        }));
+
+        // Newest first
+        usort($entries, function($a, $b) {
+            return strcmp($b['timestamp'], $a['timestamp']);
+        });
+
+        $total = count($entries);
+        $offset = max(0, ($page - 1) * $perPage);
+        $pageData = array_slice($entries, $offset, $perPage);
+
+        return [
+            'data' => $pageData,
+            'total' => $total,
+            'page' => $page,
+            'perPage' => $perPage,
+        ];
+    }
+
+    /**
+     * JSON endpoint to fetch system logs with simple pagination and filters.
+     */
+    public function systemLogs(Request $request)
+    {
+        $page = max(1, (int) $request->input('page', 1));
+        $perPage = min(200, max(1, (int) $request->input('per_page', 25)));
+        $level = $request->input('level');
+        $search = $request->input('search');
+        $date = $request->input('date');
+
+        $result = $this->readSystemLogs($page, $perPage, $level, $search, $date);
+        return response()->json(['success' => true] + $result);
     }
 
     /**

@@ -121,6 +121,11 @@ Route::middleware(['auth:web', 'role:super_admin,school_admin', 'verified'])->gr
     Route::post('/admin/users/{user}/reset-password', [UserManagementController::class, 'resetPassword'])->name('admin.users.reset-password');
     Route::delete('/admin/users/{user}', [UserManagementController::class, 'destroy'])->name('admin.users.destroy');
 
+    // User Export/Import routes (mirror course management)
+    Route::get('/admin/user-management/export', [UserManagementController::class, 'export'])->name('admin.userManagement.export');
+    Route::get('/admin/user-management/export-excel', [UserManagementController::class, 'exportExcel'])->name('admin.userManagement.exportExcel');
+    Route::post('/admin/user-management/import-json', [UserManagementController::class, 'importJson'])->name('admin.userManagement.import');
+
     // Reports & Logs routes (new AdminReportsController)
     // Main page
     Route::get('/admin/reports-logs', [AdminReportsController::class, 'index'])->name('admin.reports_logs');
@@ -128,6 +133,8 @@ Route::middleware(['auth:web', 'role:super_admin,school_admin', 'verified'])->gr
     Route::get('/admin/reports', [AdminReportsController::class, 'index']);
     // Chart data (AJAX) - new canonical name
     Route::post('/admin/reports/chart-data', [AdminReportsController::class, 'chartData'])->name('admin.reports.chartData');
+    // System logs (AJAX) endpoint
+    Route::post('/admin/reports/system-logs', [AdminReportsController::class, 'systemLogs'])->name('admin.reports.systemLogs');
     // Legacy alias some code may still call
     Route::match(['get','post'], '/admin/reports/data', [AdminReportsController::class, 'chartData'])->name('admin.reports.data');
     // Instructor lookup (AJAX) used by filter modal

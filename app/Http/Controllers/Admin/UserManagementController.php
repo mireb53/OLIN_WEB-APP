@@ -15,6 +15,7 @@ use App\Models\School;
 use Carbon\Carbon;
 use Exception;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
+use ZipArchive;
 
 class UserManagementController extends Controller
 {
@@ -516,6 +517,202 @@ class UserManagementController extends Controller
         
         return redirect()->route('admin.users.index')
             ->with('success', "User {$statusText} successfully.");
+    }
+
+    /**
+     * Export users (all or filtered by role/status/school) as JSON for re-import.
+     * Accepts optional query params: role, status. Super Admin scope by active school when selected.
+     */
+    public function export(Request $request)
+    {
+        $this->authorize('viewAny', User::class);
+        $actor = Auth::user();
+        $role = $request->query('role');
+        $status = $request->query('status');
+
+        $q = User::query()->orderBy('id');
+        if ($actor->isSchoolAdmin()) {
+            $q->where('school_id', $actor->school_id)->where('role', '!=', User::ROLE_SUPER_ADMIN);
+        } elseif ($actor->isSuperAdmin()) {
+            if ($sid = Session::get('active_school')) { $q->where('school_id', $sid); }
+        }
+        if ($role && $role !== 'all') {
+            if ($role === 'admin') {
+                $q->whereIn('role', [User::ROLE_SUPER_ADMIN, User::ROLE_SCHOOL_ADMIN]);
+            } else {
+                $q->where('role', $role);
+            }
+        }
+        if ($status && $status !== 'all') { $q->where('status', $status); }
+
+        $users = $q->get();
+        $payload = $users->map(function($u){
+            return [
+                'name' => $u->name,
+                'first_name' => $u->first_name,
+                'last_name' => $u->last_name,
+                'email' => $u->email,
+                'role' => $u->role,
+                'status' => $u->status,
+                'program_id' => $u->program_id,
+                'section_id' => $u->section_id,
+                'school_id' => $u->school_id,
+                'email_verified' => (bool)$u->email_verified_at,
+            ];
+        })->values();
+
+        $json = json_encode([
+            'meta' => [
+                'exported_at' => now()->toIso8601String(),
+                'count' => $payload->count(),
+                'version' => 1,
+            ],
+            'users' => $payload
+        ], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
+
+        $filename = 'users-export-'.now()->format('Ymd-His').'.json';
+        return response($json, 200, [
+            'Content-Type' => 'application/json',
+            'Content-Disposition' => 'attachment; filename="'.$filename.'"'
+        ]);
+    }
+
+    /**
+     * Export users to a simple Excel (.xlsx) file with core columns.
+     */
+    public function exportExcel()
+    {
+        $this->authorize('viewAny', User::class);
+        $actor = Auth::user();
+        $q = User::query()->orderBy('created_at','desc');
+        if ($actor->isSchoolAdmin()) {
+            $q->where('school_id', $actor->school_id)->where('role', '!=', User::ROLE_SUPER_ADMIN);
+        } elseif ($actor->isSuperAdmin()) {
+            if ($sid = Session::get('active_school')) { $q->where('school_id', $sid); }
+        }
+        $users = $q->get();
+
+        $headers = ['ID','Name','Email','Role','Status','Program','Section','School','Verified','Created At'];
+        $rowsXml = '';
+        $cell = function($v){ $val = htmlspecialchars((string)$v, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'); return '<c t="inlineStr"><is><t>'.$val.'</t></is></c>'; };
+        $rowsXml .= '<row>'.implode('', array_map($cell,$headers)).'</row>';
+        foreach($users as $u){
+            $rowsXml .= '<row>'
+                .$cell($u->id)
+                .$cell($u->name)
+                .$cell($u->email)
+                .$cell($u->role)
+                .$cell($u->status)
+                .$cell($u->program_id)
+                .$cell($u->section_id)
+                .$cell($u->school_id)
+                .$cell($u->email_verified_at ? 'Yes' : 'No')
+                .$cell(optional($u->created_at)->format('Y-m-d H:i'))
+                .'</row>';
+        }
+
+        $sheetXml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+            .'<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'
+            .'<sheetData>'.$rowsXml.'</sheetData>'
+            .'</worksheet>';
+        $workbookXml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+            .'<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">'
+            .'<sheets><sheet name="Users" sheetId="1" r:id="rId1"/></sheets>'
+            .'</workbook>';
+        $relsXml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+            .'<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+            .'<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>'
+            .'</Relationships>';
+        $contentTypesXml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+            .'<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">'
+            .'<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>'
+            .'<Default Extension="xml" ContentType="application/xml"/>'
+            .'<Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>'
+            .'<Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>'
+            .'</Types>';
+        $rootRelsXml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+            .'<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+            .'<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>'
+            .'</Relationships>';
+
+        $tmp = tempnam(sys_get_temp_dir(), 'xlsx');
+        $zip = new ZipArchive();
+        $zip->open($tmp, ZipArchive::OVERWRITE);
+        $zip->addFromString('[Content_Types].xml', $contentTypesXml);
+        $zip->addEmptyDir('_rels');
+        $zip->addFromString('_rels/.rels', $rootRelsXml);
+        $zip->addEmptyDir('xl');
+        $zip->addEmptyDir('xl/_rels');
+        $zip->addEmptyDir('xl/worksheets');
+        $zip->addFromString('xl/workbook.xml', $workbookXml);
+        $zip->addFromString('xl/_rels/workbook.xml.rels', $relsXml);
+        $zip->addFromString('xl/worksheets/sheet1.xml', $sheetXml);
+        $zip->close();
+
+        $filename = 'users-export-'.now()->format('Ymd-His').'.xlsx';
+        return response()->download($tmp, $filename, [
+            'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        ])->deleteFileAfterSend(true);
+    }
+
+    /**
+     * Import users from previously exported JSON. Creates new users only; existing emails are skipped.
+     * Accepts JSON object { meta, users: [...] } or an array of user objects for backward compatibility.
+     */
+    public function importJson(Request $request)
+    {
+        $this->authorize('create', User::class);
+        $request->validate(['file' => 'required|file']);
+
+        $contents = file_get_contents($request->file('file')->getRealPath());
+        $data = json_decode($contents, true);
+        if ($data === null && json_last_error() !== JSON_ERROR_NONE) {
+            return response()->json(['success' => false, 'message' => 'Invalid JSON: '.json_last_error_msg()], 422);
+        }
+        if (isset($data[0]) && is_array($data[0]) && !isset($data['users'])) {
+            $data = [ 'meta' => [ 'inferred' => true, 'version' => 1 ], 'users' => $data ];
+        }
+        if (!$data || !isset($data['users']) || !is_array($data['users'])) {
+            return response()->json(['success' => false, 'message' => 'Invalid file structure. Expecting object with a "users" array.'], 422);
+        }
+
+        $actor = Auth::user();
+        $created = 0; $skipped = 0; $errors = [];
+        foreach ($data['users'] as $idx => $u) {
+            try {
+                if (empty($u['email']) || empty($u['name'])) { $skipped++; continue; }
+                if (User::where('email', $u['email'])->exists()) { $skipped++; continue; }
+
+                $role = in_array(($u['role'] ?? 'student'), [User::ROLE_STUDENT, User::ROLE_INSTRUCTOR, User::ROLE_SCHOOL_ADMIN, User::ROLE_SUPER_ADMIN])
+                    ? $u['role'] : User::ROLE_STUDENT;
+                if ($role === User::ROLE_SUPER_ADMIN && !($actor && $actor->isSuperAdmin())) {
+                    $errors[] = 'Row '.($idx+1).': Only Super Admin can import Super Admins.'; continue;
+                }
+
+                $schoolId = null;
+                if ($actor->isSchoolAdmin()) { $schoolId = $actor->school_id; }
+                elseif ($actor->isSuperAdmin()) { $schoolId = Session::get('active_school'); }
+
+                User::create([
+                    'name' => $u['name'],
+                    'first_name' => $u['first_name'] ?? null,
+                    'last_name' => $u['last_name'] ?? null,
+                    'email' => $u['email'],
+                    'role' => $role,
+                    'status' => in_array(($u['status'] ?? 'active'), ['active','inactive','suspended']) ? $u['status'] : 'active',
+                    'program_id' => $u['program_id'] ?? null,
+                    'section_id' => $u['section_id'] ?? null,
+                    'school_id' => $schoolId,
+                    'password' => Hash::make(Str::random(32)),
+                    'email_verified_at' => !empty($u['email_verified']) ? now() : null,
+                ]);
+                $created++;
+            } catch (\Throwable $e) {
+                $errors[] = 'Row '.($idx+1).': '.$e->getMessage();
+            }
+        }
+
+        return response()->json(['success' => true, 'summary' => compact('created','skipped','errors')]);
     }
 
     /**

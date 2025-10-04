@@ -419,6 +419,75 @@
     </div>
   </div>
 
+  <!-- System Logs Advanced Section -->
+  <div class="bg-white p-6 rounded-2xl border border-gray-100 shadow card-hover mt-6" id="systemLogsSection">
+    <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-4">
+      <div>
+        <h2 class="text-lg font-semibold">System Logs</h2>
+        <p class="text-xs text-gray-500">Latest application events (laravel.log) — newest first. Filter by level, date, or search.</p>
+      </div>
+      <div class="flex flex-wrap items-center gap-2 text-sm">
+        <select id="logLevelFilter" class="border rounded px-2 py-1">
+          <option value="">All Levels</option>
+          <option value="ERROR">Error</option>
+          <option value="WARNING">Warning</option>
+          <option value="INFO">Info</option>
+          <option value="DEBUG">Debug</option>
+        </select>
+        <input type="date" id="logDateFilter" class="border rounded px-2 py-1" />
+        <input type="text" id="logSearch" placeholder="Search message/context" class="border rounded px-2 py-1 w-48" />
+        <button id="logApplyFilters" type="button" class="bg-[#096F4D] text-white px-3 py-1 rounded">Apply</button>
+        <button id="logClearFilters" type="button" class="border border-gray-300 px-3 py-1 rounded text-gray-600">Reset</button>
+      </div>
+    </div>
+    <div class="overflow-x-auto border rounded" style="max-height:420px;">
+      <table class="min-w-full text-left text-sm" id="systemLogsTable">
+        <thead class="text-gray-500 text-xs uppercase sticky top-0 bg-gray-50">
+          <tr>
+            <th class="px-2 py-2 w-40">Timestamp</th>
+            <th class="px-2 py-2 w-20">Level</th>
+            <th class="px-2 py-2">Message</th>
+            <th class="px-2 py-2 w-12">Details</th>
+          </tr>
+        </thead>
+        <tbody id="systemLogsBody">
+          @php $preview = $systemLogsPreview['data'] ?? []; @endphp
+          @forelse($preview as $log)
+            <tr class="border-t align-top">
+              <td class="px-2 py-2 text-xs whitespace-nowrap">{{ $log['timestamp'] }}</td>
+              <td class="px-2 py-2">
+                <span class="text-[10px] font-semibold px-2 py-1 rounded inline-block
+                  @if($log['level']==='ERROR') bg-red-100 text-red-700
+                  @elseif($log['level']==='WARNING') bg-yellow-100 text-yellow-700
+                  @elseif($log['level']==='DEBUG') bg-gray-200 text-gray-700
+                  @else bg-green-100 text-green-700 @endif">{{ $log['level'] }}</span>
+              </td>
+              <td class="px-2 py-2 text-sm">
+                <div class="font-medium break-words">{{ Str::limit($log['message'],180) }}</div>
+                @if(!empty($log['context']))
+                  <pre class="hidden whitespace-pre-wrap mt-2 text-xs bg-gray-50 p-2 rounded border context-block">{{ $log['context'] }}</pre>
+                @endif
+              </td>
+              <td class="px-2 py-2 text-center">
+                @if(!empty($log['context']))
+                  <button class="toggle-context text-xs text-blue-600 underline" type="button">Show</button>
+                @else
+                  <span class="text-gray-300 text-xs">-</span>
+                @endif
+              </td>
+            </tr>
+          @empty
+            <tr><td colspan="4" class="px-2 py-4 text-center text-gray-400">No log entries found.</td></tr>
+          @endforelse
+        </tbody>
+      </table>
+    </div>
+    <div class="flex justify-between items-center mt-3 text-xs" id="systemLogsFooter">
+      <div id="systemLogsMeta" class="text-gray-500"></div>
+      <div class="flex items-center gap-2" id="systemLogsPager"></div>
+    </div>
+  </div>
+
 </div>
 @include('admin.reports.filter-modal')
 
@@ -617,6 +686,83 @@
     chartPicker.addEventListener('change', (e) => {
       // when a specific date is chosen, use range 'custom' and send start/end as same date
       postChartData('custom', e.target.value);
+    });
+
+    // ---- System Logs dynamic loading ----
+    const logsState = { page: 1, level: '', search: '', date: '', perPage: 25, pages: 1 };
+    const logsBody = document.getElementById('systemLogsBody');
+    const logsPager = document.getElementById('systemLogsPager');
+    const logsMeta = document.getElementById('systemLogsMeta');
+    const levelSel = document.getElementById('logLevelFilter');
+    const searchInp = document.getElementById('logSearch');
+    const dateInp = document.getElementById('logDateFilter');
+    const btnApply = document.getElementById('logApplyFilters');
+    const btnReset = document.getElementById('logClearFilters');
+
+    function escapeHtml(str){ return str ? str.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'}[c]||c)) : ''; }
+    function truncate(str, n){ return (str && str.length>n)? str.slice(0,n-1)+'…' : (str||''); }
+
+    function renderLogs(meta){
+      if(!logsBody) return; // section may be conditionally present
+      logsState.pages = meta.pages || 1;
+      logsState.page = meta.page || 1;
+      logsBody.innerHTML = '';
+      if(!meta.data || meta.data.length===0){
+        logsBody.innerHTML = '<tr><td colspan="4" class="px-2 py-4 text-center text-gray-400">No log entries found.</td></tr>';
+      } else {
+        meta.data.forEach(entry => {
+          const tr = document.createElement('tr');
+          tr.className = 'border-t align-top';
+          const levelBadgeClass = entry.level==='ERROR' ? 'bg-red-100 text-red-700' : (entry.level==='WARNING' ? 'bg-yellow-100 text-yellow-700' : (entry.level==='DEBUG' ? 'bg-gray-200 text-gray-700' : 'bg-green-100 text-green-700'));
+          tr.innerHTML = `
+            <td class="px-2 py-2 text-xs whitespace-nowrap">${escapeHtml(entry.timestamp)}</td>
+            <td class="px-2 py-2"><span class="text-[10px] font-semibold px-2 py-1 rounded inline-block ${levelBadgeClass}">${escapeHtml(entry.level)}</span></td>
+            <td class="px-2 py-2 text-sm">
+              <div class="font-medium break-words">${escapeHtml(truncate(entry.message,180))}</div>
+              ${entry.context ? `<pre class="hidden whitespace-pre-wrap mt-2 text-xs bg-gray-50 p-2 rounded border context-block">${escapeHtml(entry.context)}</pre>`: ''}
+            </td>
+            <td class="px-2 py-2 text-center">${entry.context ? '<button class="toggle-context text-xs text-blue-600 underline" type="button">Show</button>' : '<span class="text-gray-300 text-xs">-</span>'}</td>`;
+          logsBody.appendChild(tr);
+        });
+      }
+      buildLogsPager();
+      if (logsMeta) logsMeta.textContent = `${meta.total || 0} entries${logsState.pages>1?` · Page ${logsState.page}/${logsState.pages}`:''}`;
+    }
+
+    function buildLogsPager(){
+      if(!logsPager) return;
+      logsPager.innerHTML='';
+      if(logsState.pages<=1) return;
+      const mkBtn=(label,pg,disabled=false)=>{ const b=document.createElement('button'); b.textContent=label; b.className='px-2 py-1 border rounded '+(pg===logsState.page?'bg-gray-200':''); if(disabled){b.disabled=true; b.classList.add('opacity-50','cursor-not-allowed');} b.addEventListener('click',()=>{ if(pg!==logsState.page) { logsState.page=pg; fetchLogs(); }}); return b;};
+      logsPager.appendChild(mkBtn('Prev', Math.max(1, logsState.page-1), logsState.page===1));
+      const windowSize = 5;
+      let start = Math.max(1, logsState.page - Math.floor(windowSize/2));
+      let end = start + windowSize -1;
+      if(end > logsState.pages){ end = logsState.pages; start = Math.max(1, end-windowSize+1); }
+      for(let p=start; p<=end; p++){ logsPager.appendChild(mkBtn(p,p,false)); }
+      logsPager.appendChild(mkBtn('Next', Math.min(logsState.pages, logsState.page+1), logsState.page===logsState.pages));
+    }
+
+    function fetchLogs(){
+      const payload = { page: logsState.page, level: logsState.level, search: logsState.search, date: logsState.date, perPage: logsState.perPage, _token: '{{ csrf_token() }}' };
+      fetch('{{ route('admin.reports.systemLogs') }}', { method:'POST', headers:{'Content-Type':'application/json','X-CSRF-TOKEN':'{{ csrf_token() }}'}, body: JSON.stringify(payload) })
+        .then(r=>r.json())
+        .then(data=>{ renderLogs(data); })
+        .catch(err=>console.error(err));
+    }
+
+    if(btnApply){
+      btnApply.addEventListener('click', ()=>{ logsState.page=1; logsState.level=levelSel.value; logsState.search=searchInp.value.trim(); logsState.date=dateInp.value; fetchLogs(); });
+    }
+    if(btnReset){
+      btnReset.addEventListener('click', ()=>{ levelSel.value=''; searchInp.value=''; dateInp.value=''; logsState.page=1; logsState.level=''; logsState.search=''; logsState.date=''; fetchLogs(); });
+    }
+
+    document.getElementById('systemLogsTable')?.addEventListener('click', function(e){
+      if(e.target.classList.contains('toggle-context')){
+        const pre = e.target.closest('tr').querySelector('.context-block');
+        if(pre){ const showing = !pre.classList.contains('hidden'); pre.classList.toggle('hidden'); e.target.textContent = showing ? 'Show' : 'Hide'; }
+      }
     });
   });
 </script>

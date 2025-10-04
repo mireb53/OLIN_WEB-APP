@@ -156,7 +156,8 @@
             @include('admin.courses.export-import-modal')
 
             {{-- keep delete modal here for simplicity (OTP-based) --}}
-            <div id="deleteModal" class="fixed inset-0 bg-black bg-opacity-50 hidden z-50 items-center justify-center">
+            <div id="deleteModal" role="dialog" aria-modal="true" class="fixed inset-0 bg-slate-900/30 backdrop-blur-sm hidden z-50">
+                <div class="min-h-screen w-full flex items-center justify-center p-4">
                 <div class="bg-white rounded-2xl shadow-2xl p-6 max-w-md w-full mx-4 border-t-8 border-red-600 relative">
                     <div class="absolute -top-8 left-1/2 transform -translate-x-1/2 bg-red-600 text-white rounded-full w-14 h-14 flex items-center justify-center shadow-lg">
                         <i class="fas fa-exclamation-triangle fa-lg"></i>
@@ -165,6 +166,7 @@
                     <p class="text-slate-600 mb-4 text-center">Are you sure you want to delete <span id="deleteCourseTitle" class="font-bold"></span>? This action cannot be undone.</p>
                     <div id="deleteStep1" class="mt-1">
                         <button onclick="requestDeleteOtp()" class="w-full bg-gradient-to-r from-red-600 to-red-400 text-white font-semibold py-2 rounded-lg">Send Verification Code to Instructor Email</button>
+                        <button onclick="closeDeleteModal()" class="w-full bg-gray-100 text-gray-800 font-medium py-2 rounded-lg mt-2">Cancel</button>
                     </div>
                     <div id="deleteStep2" class="hidden mt-3">
                         <label class="block text-slate-700 font-semibold mb-2">Enter Verification Code</label>
@@ -175,6 +177,7 @@
                             <button onclick="closeDeleteModal()" class="flex-1 bg-gray-100 text-gray-800 py-2 rounded-lg">Cancel</button>
                         </div>
                     </div>
+                </div>
                 </div>
             </div>
 
@@ -313,6 +316,7 @@
             };
 
             let deleteCourseId = null;
+            const __deleteModalEl = document.getElementById('deleteModal');
             function confirmDelete(courseId, courseTitle) {
                 deleteCourseId = courseId;
                 document.getElementById('deleteCourseTitle').textContent = courseTitle;
@@ -324,14 +328,10 @@
                 const s2 = document.getElementById('deleteStep2');
                 if (s1) s1.classList.remove('hidden');
                 if (s2) s2.classList.add('hidden');
-                const modal = document.getElementById('deleteModal');
-                modal.classList.remove('hidden');
-                modal.classList.add('flex');
+                __deleteModalEl.classList.remove('hidden');
             }
             function closeDeleteModal() {
-                const modal = document.getElementById('deleteModal');
-                modal.classList.add('hidden');
-                modal.classList.remove('flex');
+                __deleteModalEl.classList.add('hidden');
                 deleteCourseId = null;
                 const input = document.getElementById('deleteOtpInput');
                 const err = document.getElementById('deleteError');
@@ -342,6 +342,9 @@
                 if (s1) s1.classList.remove('hidden');
                 if (s2) s2.classList.add('hidden');
             }
+            // Close on overlay click and ESC
+            __deleteModalEl.addEventListener('click', (e)=>{ if(e.target === __deleteModalEl){ closeDeleteModal(); } });
+            document.addEventListener('keydown', (e)=>{ if(e.key === 'Escape' && !__deleteModalEl.classList.contains('hidden')) closeDeleteModal(); });
             // Course-specific OTP for delete
             function requestDeleteOtp(){
                 if(!deleteCourseId) return;

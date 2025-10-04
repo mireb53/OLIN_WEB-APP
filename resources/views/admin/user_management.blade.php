@@ -72,7 +72,7 @@
                         data-modal-target="bulkImportModal"
                         class="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg shadow hover:bg-gray-200"
                     >
-                        Bulk Import
+                        Bulk Import/Export
                     </button>
                     <button 
                         type="button" 
@@ -229,7 +229,7 @@
     {{-- Reset password modal no longer used on this page --}}
     {{-- @include('admin.UsersModals.reset-password-modal') --}}
     @include('admin.UsersModals.delete-user-modal')
-    @include('admin.UsersModals.bulk-import-modal')
+    @include('admin.UsersModals.bulk-import_export-modal')
 
 @push('scripts')
 <script>
