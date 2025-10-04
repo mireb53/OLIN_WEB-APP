@@ -751,9 +751,10 @@ class AdminReportsController extends Controller
         }
 
         // Failed login attempts (with optional filters)
-        $from = $request->input('from');
-        $to = $request->input('to');
-        $userSearch = $request->input('user');
+    $from = $request->input('from');
+    $to = $request->input('to');
+    $userSearch = $request->input('user');
+    $ipSearch = $request->input('ip');
 
         $failedLoginsQuery = DB::table('failed_logins as f')
             ->leftJoin('users as u', 'u.id', '=', 'f.user_id');
@@ -797,6 +798,9 @@ class AdminReportsController extends Controller
                   ->orWhere('f.email', 'like', "%{$userSearch}%");
             });
         }
+        if (!empty($ipSearch)) {
+            $failedLoginsQuery->where('f.ip_address', 'like', "%{$ipSearch}%");
+        }
 
         // Build aggregation subquery for attempts by identifier (user_id or email) within the same date window
         $aggregation = DB::table('failed_logins as fi')
@@ -836,7 +840,7 @@ class AdminReportsController extends Controller
                 'f.created_at',
                 'f.ip_address',
                 DB::raw("COALESCE(u.name, f.email, 'Unknown') as user_identifier"),
-                DB::raw("'Invalid credentials' as reason"),
+                DB::raw("COALESCE(NULLIF(f.reason,''),'invalid_credentials') as reason"),
                 DB::raw('fa.attempts as attempts'),
             ])
             ->orderBy('f.created_at', 'desc')

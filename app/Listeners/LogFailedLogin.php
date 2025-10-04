@@ -17,6 +17,7 @@ class LogFailedLogin
                 'email' => is_array($event->credentials) ? ($event->credentials['email'] ?? null) : null,
                 'ip_address' => request()->ip(),
                 'user_agent' => request()->userAgent(),
+                'reason' => 'invalid_credentials',
                 'created_at' => now(),
                 'updated_at' => now(),
             ]);

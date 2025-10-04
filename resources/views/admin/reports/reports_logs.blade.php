@@ -386,6 +386,7 @@
         <input type="date" name="from" value="{{ request('from') }}" class="border border-gray-300 rounded-xl px-4 py-2 w-full md:w-auto">
         <input type="date" name="to" value="{{ request('to') }}" class="border border-gray-300 rounded-xl px-4 py-2 w-full md:w-auto">
         <input type="text" name="user" value="{{ request('user') }}" placeholder="Search user/email" class="border border-gray-300 rounded-xl px-4 py-2 w-full md:w-1/3">
+        <input type="text" name="ip" value="{{ request('ip') }}" placeholder="Filter by IP" class="border border-gray-300 rounded-xl px-4 py-2 w-full md:w-auto">
         <button type="submit" class="px-6 py-2 bg-red-600 text-white rounded-xl hover:bg-red-700 shadow">Filter</button>
       </form>
 
@@ -406,7 +407,7 @@
                 <td class="px-4 py-3 border-b">{{ \Carbon\Carbon::parse($log->created_at)->setTimezone(config('app.timezone'))->format('Y-m-d H:i:s') }}</td>
                 <td class="px-4 py-3 border-b">{{ $log->user_identifier ?? 'Unknown User' }}</td>
                 <td class="px-4 py-3 border-b">{{ $log->ip_address ?? 'N/A' }}</td>
-                <td class="px-4 py-3 border-b">{{ ucfirst($log->reason ?? 'failed') }}</td>
+                <td class="px-4 py-3 border-b">{{ Str::headline($log->reason ?? 'failed') }}</td>
                 <td class="px-4 py-3 border-b">{{ $log->attempts ?? 1 }}</td>
               </tr>
             @empty

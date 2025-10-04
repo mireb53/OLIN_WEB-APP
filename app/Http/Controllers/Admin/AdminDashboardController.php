@@ -272,7 +272,10 @@ class AdminDashboardController extends Controller
      */
     private function getSystemHealth()
     {
-        $totalStorage = 20 * 1024 * 1024 * 1024; // 20GB
+        // Pull max storage from system config (bytes). Fallback to 100GB if not configured.
+        $configured = \App\Models\SystemConfig::get('max_storage', null);
+        // Accept human-readable like "100 GB" or raw bytes
+        $totalStorage = $configured ? $this->parseByteString($configured) : (100 * 1024 * 1024 * 1024);
         $usedStorage = $this->calculateUsedStorage();
         $storagePercentage = ($usedStorage / $totalStorage) * 100;
 
@@ -331,6 +334,24 @@ class AdminDashboardController extends Controller
             $size /= 1024;
         }
         return round($size, $precision) . ' ' . $units[$i];
+    }
+
+    /**
+     * Parse strings like "100GB", "100 GB", "512 mb" into bytes; numbers are bytes.
+     */
+    private function parseByteString($value): int
+    {
+        if (is_numeric($value)) return (int)$value;
+        $str = trim(strtolower((string)$value));
+        if ($str === '') return 0;
+        if (preg_match('/^([\d.]+)\s*(b|kb|mb|gb|tb)$/i', $str, $m)) {
+            $num = (float)$m[1];
+            $unit = strtolower($m[2]);
+            $pow = ['b'=>0,'kb'=>1,'mb'=>2,'gb'=>3,'tb'=>4][$unit] ?? 0;
+            return (int) round($num * pow(1024, $pow));
+        }
+        // fallback: try to cast
+        return (int) $value;
     }
 
     /**
@@ -530,9 +551,12 @@ class AdminDashboardController extends Controller
     {
         try {
             $since = Carbon::now()->subHours(24);
-            return DB::table('failed_logins')
-                ->where('created_at', '>=', $since)
-                ->count();
+            if (\Schema::hasTable('failed_logins')) {
+                return DB::table('failed_logins')
+                    ->where('created_at', '>=', $since)
+                    ->count();
+            }
+            return 0;
         } catch (\Throwable $e) {
             return 0;
         }

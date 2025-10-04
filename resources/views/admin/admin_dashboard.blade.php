@@ -298,7 +298,29 @@
                             <p class="text-gray-600">Real-time monitoring and security overview</p>
                         </div>
                     </div>
-                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                        {{-- Storage Used vs Available --}}
+                        <div class="bg-gradient-to-br from-slate-50 to-slate-100 rounded-2xl p-6 border border-slate-200">
+                            <div class="flex items-center justify-between mb-4">
+                                <div class="w-12 h-12 bg-slate-500 rounded-xl flex items-center justify-center">
+                                    <span class="text-2xl">💾</span>
+                                </div>
+                            </div>
+                            <div>
+                                <p class="text-sm font-medium text-slate-700 mb-1">Storage Usage</p>
+                                @php
+                                    $used = $systemHealth['storage_used'] ?? ($health['storage_used'] ?? null);
+                                    $total = $systemHealth['storage_total'] ?? ($health['storage_total'] ?? null);
+                                    $pct = (float)($systemHealth['storage_percentage'] ?? ($health['storage_percentage'] ?? 0));
+                                    $pctClamped = max(0, min(100, round($pct)));
+                                @endphp
+                                <p class="text-3xl font-bold text-slate-900 mb-2">{{ $used }} <span class="text-base font-medium text-slate-600">of {{ $total }}</span></p>
+                                <div class="w-full h-2 bg-slate-200 rounded-full overflow-hidden">
+                                    <div class="h-2 rounded-full {{ $pctClamped > 80 ? 'bg-red-500' : ($pctClamped > 60 ? 'bg-amber-500' : 'bg-emerald-500') }}" style="width: {{ $pctClamped }}%"></div>
+                                </div>
+                                <p class="text-xs text-slate-500 mt-1">{{ $pctClamped }}% of storage used</p>
+                            </div>
+                        </div>
                         {{-- Last Login (Hybrid format) --}}
                         <div class="bg-gradient-to-br from-blue-50 to-blue-100 rounded-2xl p-6 border border-blue-200">
                             <div class="flex items-center justify-between mb-4">

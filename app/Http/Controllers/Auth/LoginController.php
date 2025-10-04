@@ -7,6 +7,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth; 
 use App\Notifications\VerifyEmailWithCode;
 use Carbon\Carbon;
+use App\Models\FailedLogin;
 
 class LoginController extends Controller
 {
@@ -30,6 +31,10 @@ class LoginController extends Controller
 
         // If user is admin (school_admin/super_admin), password is mandatory
         if ($user && in_array($user->role, ['super_admin','school_admin'])) {
+            if (empty($request->password)) {
+                // Log missing password (no auth attempt will be made)
+                $this->logFailedLogin($request, $user, 'missing_password');
+            }
             $request->validate(['password' => ['required', 'string']]);
         }
 
@@ -74,16 +79,21 @@ class LoginController extends Controller
         if ($user && empty($request->password)) {
             // No password provided
             if (in_array($user->role, ['super_admin','school_admin'])) {
+                // log failed attempt: missing password for admin
+                $this->logFailedLogin($request, $user, 'missing_password');
                 return back()->withErrors([
                     'email' => 'Admins must sign in with email and password.',
                 ])->onlyInput('email');
             } else {
+                // log failed attempt: missing password for non-admin
+                $this->logFailedLogin($request, $user, 'missing_password');
                 return back()->withErrors([
                     'email' => 'Please enter your password to sign in here, or use "Sign in with Google".',
                 ])->onlyInput('email');
             }
         }
 
+        // Note: do not log here to avoid duplicate entries; the Auth Failed event listener will record invalid credentials.
         return back()->withErrors([
             'email' => 'The provided credentials do not match our records.',
         ])->onlyInput('email');
@@ -101,5 +111,23 @@ class LoginController extends Controller
         $request->session()->regenerateToken(); // Regenerate CSRF token for future requests
 
         return redirect('/login'); // Redirect to login page after logout
+    }
+
+    /**
+     * Record a failed login attempt with metadata
+     */
+    protected function logFailedLogin(Request $request, ?\App\Models\User $user, string $reason): void
+    {
+        try {
+            FailedLogin::create([
+                'user_id' => $user?->id,
+                'email' => $request->input('email'),
+                'ip_address' => $request->ip(),
+                'user_agent' => substr((string)$request->header('User-Agent'), 0, 255),
+                'reason' => $reason,
+            ]);
+        } catch (\Throwable $e) {
+            // Do not disrupt the login flow
+        }
     }
 }
