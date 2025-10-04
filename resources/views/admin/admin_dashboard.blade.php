@@ -70,6 +70,8 @@
         }
         .modal-content {
             animation: slideUp 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            max-height: 90vh; /* keep modal within viewport height */
+            overflow-y: auto; /* scroll inside modal when content is long */
         }
         @keyframes fadeIn {
             from { opacity: 0; }
@@ -584,8 +586,8 @@
     </div>
 
     {{-- Quick Add User Modal --}}
-    <div id="quickAddUserModal" class="modal-backdrop fixed inset-0 bg-black bg-opacity-50 hidden z-50">
-        <div class="flex items-center justify-center min-h-screen">
+    <div id="quickAddUserModal" class="modal-backdrop fixed inset-0 bg-slate-900/40 backdrop-blur-sm overflow-y-auto hidden z-50">
+        <div class="flex items-center justify-center min-h-dvh p-4">
         <div class="modal-content bg-white rounded-2xl shadow-xl p-6 max-w-md w-full mx-4">
             <div class="flex items-center justify-between mb-4">
                 <h3 class="text-lg font-bold text-slate-900">🚀 Quick Add User</h3>
@@ -610,20 +612,9 @@
                     <select name="role" class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
                         <option value="instructor">Instructor</option>
                         <option value="student">Student</option>
-                        @if(auth()->user()->isSuperAdmin())
-                        <option value="school_admin">School Admin</option>
-                        <option value="super_admin">Super Admin</option>
-                        @endif
                     </select>
                 </div>
-                <div>
-                    <label class="block text-sm font-medium text-slate-700 mb-1">Password</label>
-                    <input type="password" name="password" class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" required>
-                </div>
-                <div>
-                    <label class="block text-sm font-medium text-slate-700 mb-1">Confirm Password</label>
-                    <input type="password" name="password_confirmation" class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" required>
-                </div>
+                <p class="text-xs text-slate-500">Note: Password setup is handled later. Only Instructor or Student can be created here.</p>
                 <div class="flex justify-end space-x-3 pt-4">
                     <button type="button" onclick="closeQuickAddUserModal()" class="px-4 py-2 text-slate-600 border border-slate-300 rounded-lg hover:bg-slate-50">Cancel</button>
                     <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">Create User</button>
@@ -639,9 +630,9 @@
     </div>
 
     {{-- Quick Add Course Modal --}}
-    <div id="quickAddCourseModal" class="modal-backdrop fixed inset-0 bg-black bg-opacity-50 hidden z-50">
-        <div class="flex items-center justify-center min-h-screen">
-        <div class="modal-content bg-white rounded-2xl shadow-xl p-6 max-w-md w-full mx-4">
+    <div id="quickAddCourseModal" class="modal-backdrop fixed inset-0 bg-slate-900/40 backdrop-blur-sm overflow-y-auto hidden z-50">
+        <div class="flex items-center justify-center min-h-dvh p-4">
+        <div class="modal-content bg-white rounded-2xl shadow-xl p-6 max-w-2xl w-full mx-4">
             <div class="flex items-center justify-between mb-4">
                 <h3 class="text-lg font-bold text-slate-900">🚀 Quick Add Course</h3>
                 <button onclick="closeQuickAddCourseModal()" class="text-slate-400 hover:text-slate-600">
@@ -650,50 +641,75 @@
                     </svg>
                 </button>
             </div>
-            <form id="quickAddCourseForm" class="space-y-4">
+            <form id="quickAddCourseForm" class="space-y-4 md:space-y-0">
                 @csrf
-                <div>
-                    <label class="block text-sm font-medium text-slate-700 mb-1">Course Name</label>
-                    <input type="text" name="title" class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500" required>
-                </div>
-                <div>
-                    <label class="block text-sm font-medium text-slate-700 mb-1">Course Code</label>
-                    <input type="text" name="course_code" class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500" required>
-                </div>
-                <div>
-                    <label class="block text-sm font-medium text-slate-700 mb-1">Program</label>
-                    <select name="program_id" class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500" required>
-                        <option value="">-- Select Program --</option>
-                        @if(isset($programs))
-                            @foreach($programs as $program)
-                                <option value="{{ $program->id }}">{{ $program->name }}</option>
-                            @endforeach
-                        @endif
-                    </select>
-                </div>
-                <div>
-                    <label class="block text-sm font-medium text-slate-700 mb-1">Credits</label>
-                    <input type="number" name="credits" min="1" max="10" class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500">
-                </div>
-                <div>
-                    <label class="block text-sm font-medium text-slate-700 mb-1">Instructor Email</label>
-                    <div class="flex space-x-2">
-                        <input type="email" id="instructorEmailLookup" class="flex-1 px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500" placeholder="instructor@example.com">
-                        <button type="button" onclick="lookupInstructor()" class="px-4 py-2 bg-slate-600 text-white rounded-lg hover:bg-slate-700">Find</button>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <!-- Instructor Email (lookup) -->
+                    <div class="md:col-span-2">
+                        <label class="block text-sm font-medium text-slate-700 mb-1">Instructor Email</label>
+                        <div class="flex gap-2">
+                            <input type="email" id="instructorEmailLookup" class="flex-1 px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500" placeholder="instructor@example.com">
+                            <button type="button" onclick="lookupInstructor()" class="px-4 py-2 bg-slate-600 text-white rounded-lg hover:bg-slate-700">Find</button>
+                        </div>
+                        <input type="hidden" name="instructor_id" id="selectedInstructorId">
+                        <div id="instructorLookupResult" class="mt-2 text-sm text-slate-600"></div>
                     </div>
-                    <input type="hidden" name="instructor_id" id="selectedInstructorId">
-                    <div id="instructorLookupResult" class="mt-2 text-sm text-slate-600"></div>
-                </div>
-                <div>
-                    <label class="block text-sm font-medium text-slate-700 mb-1">Status</label>
-                    <select name="status" class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500">
-                        <option value="draft">Draft</option>
-                        <option value="published">Published</option>
-                    </select>
-                </div>
-                <div class="flex justify-end space-x-3 pt-4">
-                    <button type="button" onclick="closeQuickAddCourseModal()" class="px-4 py-2 text-slate-600 border border-slate-300 rounded-lg hover:bg-slate-50">Cancel</button>
-                    <button type="submit" class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700">Create Course</button>
+
+                    <!-- Course Name / Course Code -->
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 mb-1">Course Name</label>
+                        <input type="text" name="title" class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500" required>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 mb-1">Course Code</label>
+                        <input type="text" name="course_code" class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500" required>
+                    </div>
+
+                    <!-- Status / Department -->
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 mb-1">Status</label>
+                        <select name="status" class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500">
+                            <option value="draft">Draft</option>
+                            <option value="published">Published</option>
+                            <option value="archived">Archived</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 mb-1">Department</label>
+                        <select id="qaDepartment" name="department" class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500" required>
+                            <option value="">-- Select Department --</option>
+                            <option value="CCS">CCS - College of Computer Studies</option>
+                            <option value="CHS">CHS - College of Health Sciences</option>
+                            <option value="CAS">CAS - College of Arts and Sciences</option>
+                            <option value="CEA">CEA - College of Engineering and Architecture</option>
+                            <option value="CTHBM">CTHBM - College of Tourism, Hospitality and Business Management</option>
+                            <option value="CTDE">CTDE - College of Teacher Development and Education</option>
+                        </select>
+                    </div>
+
+                    <!-- Program / Credits -->
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 mb-1">Program</label>
+                        <select id="qaProgram" name="program_name" class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500" disabled>
+                            <option value="">-- Select Program --</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 mb-1">Credits</label>
+                        <input type="number" name="credits" min="0" max="10" class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500">
+                    </div>
+
+                    <!-- Description -->
+                    <div class="md:col-span-2">
+                        <label class="block text-sm font-medium text-slate-700 mb-1">Description (optional)</label>
+                        <textarea name="description" rows="3" class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"></textarea>
+                    </div>
+
+                    <!-- Actions -->
+                    <div class="md:col-span-2 flex justify-end space-x-3 pt-4">
+                        <button type="button" onclick="closeQuickAddCourseModal()" class="px-4 py-2 text-slate-600 border border-slate-300 rounded-lg hover:bg-slate-50">Cancel</button>
+                        <button type="submit" class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700">Create Course</button>
+                    </div>
                 </div>
             </form>
             <div class="mt-4 pt-4 border-t border-slate-200">
@@ -706,8 +722,8 @@
     </div>
 
     {{-- Announcement Modal --}}
-    <div id="announcementModal" class="modal-backdrop fixed inset-0 bg-black bg-opacity-50 hidden z-50">
-        <div class="flex items-center justify-center min-h-screen">
+    <div id="announcementModal" class="modal-backdrop fixed inset-0 bg-slate-900/40 backdrop-blur-sm overflow-y-auto hidden z-50">
+        <div class="flex items-center justify-center min-h-dvh p-4">
             <div class="modal-content bg-white rounded-2xl shadow-xl p-6 max-w-lg w-full mx-4">
             <div class="flex items-center justify-between mb-4">
                 <h3 class="text-lg font-bold text-slate-900">📢 Post Announcement</h3>
@@ -769,6 +785,46 @@
     </div>
 
 <script>
+// Quick Add Course: Department to Programs mapping (same as full create modal)
+const QA_DEPT_PROGRAMS = {
+    'CCS': [
+        {code: 'BSIT', name: 'Bachelor of Science in Information Technology'},
+        {code: 'BSCS', name: 'Bachelor of Science in Computer Science'},
+        {code: 'BSIS', name: 'Bachelor of Science in Information Systems'},
+        {code: 'BLIS', name: 'Bachelor of Library and Information Science'}
+    ],
+    'CHS': [
+        {code: 'BSN', name: 'Bachelor of Science in Nursing'},
+        {code: 'BSM', name: 'Bachelor of Science in Midwifery'}
+    ],
+    'CAS': [
+        {code: 'BAELS', name: 'Bachelor of Arts in English Language Studies'},
+        {code: 'BS Math', name: 'Bachelor of Science in Mathematics'},
+        {code: 'BS Applied Math', name: 'Bachelor of Science in Applied Mathematics'},
+        {code: 'BS DevCo', name: 'Bachelor of Science in Development Communication'},
+        {code: 'BSPA', name: 'Bachelor of Science in Public Administration'},
+        {code: 'BAHS', name: 'Bachelor of Arts in History Studies'}
+    ],
+    'CEA': [
+        {code: 'BSCE', name: 'Bachelor of Science in Civil Engineering'},
+        {code: 'BSME', name: 'Bachelor of Science in Mechanical Engineering'},
+        {code: 'BSEE', name: 'Bachelor of Science in Electrical Engineering'},
+        {code: 'BSECE', name: 'Bachelor of Science in Electronics and Communications Engineering'}
+    ],
+    'CTHBM': [
+        {code: 'BSOA', name: 'Bachelor of Science in Office Administration'},
+        {code: 'BSTM', name: 'Bachelor of Science in Tourism Management'},
+        {code: 'BSHM', name: 'Bachelor of Science in Hotel Management'},
+        {code: 'BSEM', name: 'Bachelor of Science in Entrepreneurial Management'}
+    ],
+    'CTDE': [
+        {code: 'BPEd', name: 'Bachelor of Physical Education'},
+        {code: 'BCAEd', name: 'Bachelor of Culture and Arts Education'},
+        {code: 'BSNEd', name: 'Bachelor of Special Needs Education'},
+        {code: 'BTVTEd', name: 'Bachelor of Technical-Vocational Teacher Education'}
+    ]
+};
+
 // Quick Add User Modal Functions
 function openQuickAddUserModal() {
     document.getElementById('quickAddUserModal').classList.remove('hidden');
@@ -782,6 +838,11 @@ function closeQuickAddUserModal() {
 // Quick Add Course Modal Functions
 function openQuickAddCourseModal() {
     document.getElementById('quickAddCourseModal').classList.remove('hidden');
+    // Reset department/program selects each time
+    const dept = document.getElementById('qaDepartment');
+    const prog = document.getElementById('qaProgram');
+    if (dept) dept.value = '';
+    if (prog) { prog.innerHTML = '<option value="">-- Select Program --</option>'; prog.disabled = true; }
 }
 
 function closeQuickAddCourseModal() {
@@ -789,6 +850,8 @@ function closeQuickAddCourseModal() {
     document.getElementById('quickAddCourseForm').reset();
     document.getElementById('instructorLookupResult').textContent = '';
     document.getElementById('selectedInstructorId').value = '';
+    const prog = document.getElementById('qaProgram');
+    if (prog) { prog.innerHTML = '<option value="">-- Select Program --</option>'; prog.disabled = true; }
 }
 
 // Announcement Modal Functions
@@ -946,6 +1009,29 @@ document.getElementById('announcementForm').addEventListener('submit', function(
     .catch(error => {
         showErrorToast(error.message || 'Error posting announcement');
     });
+});
+
+// Bind QA department change to populate programs
+document.addEventListener('DOMContentLoaded', function(){
+    const qaDept = document.getElementById('qaDepartment');
+    const qaProg = document.getElementById('qaProgram');
+    if (qaDept && qaProg) {
+        qaDept.addEventListener('change', function(){
+            const val = this.value;
+            qaProg.innerHTML = '<option value="">-- Select Program --</option>';
+            if (val && QA_DEPT_PROGRAMS[val]) {
+                QA_DEPT_PROGRAMS[val].forEach(p => {
+                    const opt = document.createElement('option');
+                    opt.value = p.code;
+                    opt.textContent = `${p.code} - ${p.name}`;
+                    qaProg.appendChild(opt);
+                });
+                qaProg.disabled = false;
+            } else {
+                qaProg.disabled = true;
+            }
+        });
+    }
 });
 </script>
 </x-layoutAdmin>

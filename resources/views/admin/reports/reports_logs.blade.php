@@ -14,56 +14,6 @@
 </style>
 @endpush
 <div class="space-y-8">
-  {{-- Failed Login Attempts Section --}}
-  <section class="mb-6">
-    <div class="bg-white rounded-3xl p-6 shadow border border-gray-100">
-      <div class="flex items-center mb-4">
-        <div class="w-10 h-10 bg-gradient-to-r from-red-500 to-red-600 rounded-xl flex items-center justify-center mr-3">
-          <span class="text-xl">🛡️</span>
-        </div>
-        <div>
-          <h2 class="text-xl font-bold text-gray-900">Failed Login Attempts</h2>
-          <p class="text-gray-600 text-sm">Detailed records of failed authentication within the system</p>
-        </div>
-      </div>
-
-      <form method="GET" class="mb-4 flex flex-col md:flex-row gap-3">
-        <input type="date" name="from" value="{{ request('from') }}" class="border border-gray-300 rounded-xl px-4 py-2 w-full md:w-auto">
-        <input type="date" name="to" value="{{ request('to') }}" class="border border-gray-300 rounded-xl px-4 py-2 w-full md:w-auto">
-        <input type="text" name="user" value="{{ request('user') }}" placeholder="Search user/email" class="border border-gray-300 rounded-xl px-4 py-2 w-full md:w-1/3">
-        <button type="submit" class="px-6 py-2 bg-red-600 text-white rounded-xl hover:bg-red-700 shadow">Filter</button>
-      </form>
-
-      <div class="overflow-x-auto">
-        <table class="min-w-full text-left text-sm border border-gray-200 rounded-xl overflow-hidden">
-          <thead class="bg-red-100 text-red-800 font-semibold">
-            <tr>
-              <th class="px-4 py-3 border-b">Date/Time</th>
-              <th class="px-4 py-3 border-b">User / Email</th>
-              <th class="px-4 py-3 border-b">IP Address</th>
-              <th class="px-4 py-3 border-b">Reason</th>
-              <th class="px-4 py-3 border-b">Attempts</th>
-            </tr>
-          </thead>
-          <tbody>
-            @forelse(($failedLogins ?? []) as $log)
-              <tr class="hover:bg-red-50">
-                <td class="px-4 py-3 border-b">{{ \Carbon\Carbon::parse($log->created_at)->setTimezone(config('app.timezone'))->format('Y-m-d H:i:s') }}</td>
-                <td class="px-4 py-3 border-b">{{ $log->user_identifier ?? 'Unknown User' }}</td>
-                <td class="px-4 py-3 border-b">{{ $log->ip_address ?? 'N/A' }}</td>
-                <td class="px-4 py-3 border-b">{{ ucfirst($log->reason ?? 'failed') }}</td>
-                <td class="px-4 py-3 border-b">{{ $log->attempts ?? 1 }}</td>
-              </tr>
-            @empty
-              <tr>
-                <td colspan="5" class="px-4 py-6 text-center text-gray-500">No failed login attempts found.</td>
-              </tr>
-            @endforelse
-          </tbody>
-        </table>
-      </div>
-    </div>
-  </section>
   <div class="flex items-center justify-between">
     <div class="flex items-start space-x-3">
       <div class="w-12 h-12 rounded-xl bg-gradient-to-r from-indigo-500 to-purple-600 flex items-center justify-center">
@@ -418,6 +368,57 @@
       </div>
     </div>
   </div>
+
+  {{-- Failed Login Attempts Section --}}
+  <section class="mb-6">
+    <div class="bg-white rounded-3xl p-6 shadow border border-gray-100">
+      <div class="flex items-center mb-4">
+        <div class="w-10 h-10 bg-gradient-to-r from-red-500 to-red-600 rounded-xl flex items-center justify-center mr-3">
+          <span class="text-xl">🛡️</span>
+        </div>
+        <div>
+          <h2 class="text-xl font-bold text-gray-900">Failed Login Attempts</h2>
+          <p class="text-gray-600 text-sm">Detailed records of failed authentication within the system</p>
+        </div>
+      </div>
+
+      <form method="GET" class="mb-4 flex flex-col md:flex-row gap-3">
+        <input type="date" name="from" value="{{ request('from') }}" class="border border-gray-300 rounded-xl px-4 py-2 w-full md:w-auto">
+        <input type="date" name="to" value="{{ request('to') }}" class="border border-gray-300 rounded-xl px-4 py-2 w-full md:w-auto">
+        <input type="text" name="user" value="{{ request('user') }}" placeholder="Search user/email" class="border border-gray-300 rounded-xl px-4 py-2 w-full md:w-1/3">
+        <button type="submit" class="px-6 py-2 bg-red-600 text-white rounded-xl hover:bg-red-700 shadow">Filter</button>
+      </form>
+
+      <div class="overflow-x-auto">
+        <table class="min-w-full text-left text-sm border border-gray-200 rounded-xl overflow-hidden">
+          <thead class="bg-red-100 text-red-800 font-semibold">
+            <tr>
+              <th class="px-4 py-3 border-b">Date/Time</th>
+              <th class="px-4 py-3 border-b">User / Email</th>
+              <th class="px-4 py-3 border-b">IP Address</th>
+              <th class="px-4 py-3 border-b">Reason</th>
+              <th class="px-4 py-3 border-b">Attempts</th>
+            </tr>
+          </thead>
+          <tbody>
+            @forelse(($failedLogins ?? []) as $log)
+              <tr class="hover:bg-red-50">
+                <td class="px-4 py-3 border-b">{{ \Carbon\Carbon::parse($log->created_at)->setTimezone(config('app.timezone'))->format('Y-m-d H:i:s') }}</td>
+                <td class="px-4 py-3 border-b">{{ $log->user_identifier ?? 'Unknown User' }}</td>
+                <td class="px-4 py-3 border-b">{{ $log->ip_address ?? 'N/A' }}</td>
+                <td class="px-4 py-3 border-b">{{ ucfirst($log->reason ?? 'failed') }}</td>
+                <td class="px-4 py-3 border-b">{{ $log->attempts ?? 1 }}</td>
+              </tr>
+            @empty
+              <tr>
+                <td colspan="5" class="px-4 py-6 text-center text-gray-500">No failed login attempts found.</td>
+              </tr>
+            @endforelse
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
 
   <!-- System Logs Advanced Section -->
   <div class="bg-white p-6 rounded-2xl border border-gray-100 shadow card-hover mt-6" id="systemLogsSection">
