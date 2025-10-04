@@ -92,6 +92,9 @@ class LoginController extends Controller
     // Handles user logout
     public function logout(Request $request)
     {
+        // Clear any school context on logout
+        $request->session()->forget('active_school');
+
         Auth::logout(); // Log out the user
 
         $request->session()->invalidate(); // Invalidate the current session

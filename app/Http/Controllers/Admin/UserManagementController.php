@@ -55,12 +55,11 @@ class UserManagementController extends Controller
                     Session::put('active_school', $activeSchoolId);
                 }
             }
-            
-            // If no school is selected, and schools exist, select the first one
+
+            // If no school is selected, and schools exist, require manual selection via Settings
             if (!$activeSchool && $schools->isNotEmpty()) {
-                $activeSchool = $schools->first();
-                $query->where('school_id', $activeSchool->id);
-                Session::put('active_school', $activeSchool->id);
+                return redirect()->route('admin.settings')
+                    ->with('info', 'Please select a school to manage users.');
             }
             
         } elseif ($actor->isSchoolAdmin()) {

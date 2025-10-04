@@ -31,23 +31,19 @@ class SettingsController extends Controller
             // Super Admin: Can select and manage any school
             $schools = School::with('users')->orderBy('name')->get();
             
-            // Handle school selection - priority: request > session > first school (if any)
+            // Handle school selection - priority: request > session; no implicit default
             $selectedSchoolId = $request->get('school_id') ?? Session::get('active_school');
             $activeSchool = null;
             
             if ($selectedSchoolId) {
                 $activeSchool = School::find($selectedSchoolId);
             }
-            
-            if (!$activeSchool && $schools->isNotEmpty()) {
-                $activeSchool = $schools->first();
-            }
-            
-            // Store active school in session for other pages (only if school exists)
+
+            // If selection came via request (or already in session), persist to session; otherwise keep session as-is.
             if ($activeSchool) {
                 Session::put('active_school', $activeSchool->id);
-            } else {
-                // Clear session if no schools exist
+            } else if (!$selectedSchoolId) {
+                // No selection provided and none in session -> ensure it's cleared
                 Session::forget('active_school');
             }
             
@@ -238,8 +234,12 @@ class SettingsController extends Controller
             'school_id' => ['required', 'integer', 'exists:schools,id']
         ]);
         
-        // Store selected school in session
-        Session::put('active_school', $request->school_id);
+        // Store selected school in session AND persist to Super Admin account
+        $schoolId = (int) $request->school_id;
+        Session::put('active_school', $schoolId);
+        // Persist to Super Admin user record so their account reflects current context
+        $user->school_id = $schoolId;
+        $user->save();
         
         return redirect()->route('admin.settings')->with('success', 'School context updated successfully.');
     }
@@ -322,8 +322,10 @@ class SettingsController extends Controller
                 'schools_count_after' => School::count()
             ]);
 
-            // Set session active school
+            // Set session active school and persist to Super Admin account
             Session::put('active_school', $school->id);
+            $user->school_id = $school->id;
+            $user->save();
             \Log::info('Session updated with active school ID: ' . $school->id);
 
             \Log::info('About to redirect to admin.settings with success message');

@@ -19,7 +19,7 @@
                 <label class="block text-sm font-medium text-gray-700">School</label>
                 @if(auth()->user()->isSuperAdmin())
                     <select name="school_id" class="border border-gray-300 rounded-lg px-3 py-2 w-full focus:outline-none focus:ring focus:border-indigo-500" required>
-                        <option value="">-- Select School --</option>
+                        <option value="" @if(!$activeSchool) selected @endif>-- Select School --</option>
                         @foreach($schools as $s)
                             <option value="{{ $s->id }}" {{ $activeSchool && $activeSchool->id == $s->id ? 'selected' : '' }}>
                                 {{ $s->name }}

@@ -30,8 +30,8 @@ class AdminDashboardController extends Controller
             abort(403, 'Unauthorized access to admin dashboard');
         }
         
-        // Determine active school for scoping
-        $activeSchool = $this->getActiveSchool();
+    // Determine active school for scoping
+    $activeSchool = $this->getActiveSchool();
         $activeSchoolId = $activeSchool ? $activeSchool->id : null;
         
         // Check if SuperAdmin needs to create/select a school
@@ -80,7 +80,7 @@ class AdminDashboardController extends Controller
         }
         
         if ($user->isSuperAdmin()) {
-            // Super Admin: Use active_school from session
+            // Super Admin: Use active_school from session only (no implicit default)
             $activeSchoolId = Session::get('active_school');
             if ($activeSchoolId) {
                 $school = School::find($activeSchoolId);

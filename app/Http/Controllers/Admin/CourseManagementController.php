@@ -21,6 +21,14 @@ class CourseManagementController extends Controller
     public function index()
     {
         $activeSchoolId = $this->getActiveSchoolId();
+        // For Super Admin, require manual selection of a school before viewing courses
+        $user = Auth::user();
+        if ($user && method_exists($user, 'isSuperAdmin') && $user->isSuperAdmin() && !$activeSchoolId) {
+            // If there are schools but none selected, direct them to settings to choose
+            if (\App\Models\School::count() > 0) {
+                return redirect()->route('admin.settings')->with('info', 'Please select a school to view courses.');
+            }
+        }
         // Server-side filtering and pagination
         $query = Course::with(['instructor','program'])
             ->when($activeSchoolId, function($q) use ($activeSchoolId) {

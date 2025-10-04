@@ -107,6 +107,7 @@
                                 <select name="school_id" id="school_id" 
                                         class="w-full py-2 px-3 border border-gray-300 bg-white rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
                                         onchange="document.getElementById('school-selection-form').submit()">
+                                    <option value="" @if(!$activeSchool) selected @endif disabled>-- Choose a school --</option>
                                     @foreach($schools as $school)
                                         <option value="{{ $school->id }}" @if($activeSchool && $school->id == $activeSchool->id) selected @endif>
                                             {{ $school->name }}
@@ -117,7 +118,13 @@
                                     <button type="submit" class="py-2 px-4 bg-indigo-600 text-white rounded-lg">Switch</button>
                                 </noscript>
                             </form>
-                            <p class="text-xs text-slate-500 mt-2">Switching schools will reload the settings page.</p>
+                            <p class="text-xs text-slate-500 mt-2">
+                                @if(!$activeSchool)
+                                    No school selected yet. Pick one to start managing settings.
+                                @else
+                                    Switching schools will reload the settings page.
+                                @endif
+                            </p>
                         </div>
 
                         {{-- Create New School Form --}}
