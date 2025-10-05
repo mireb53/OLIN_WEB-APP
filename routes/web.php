@@ -162,8 +162,13 @@ Route::middleware(['auth:web', 'role:super_admin,school_admin', 'verified'])->gr
     Route::post('/admin/settings/select-school', [SettingsController::class, 'selectSchool'])->name('admin.settings.select-school');
     Route::post('/admin/settings/create-school', [SettingsController::class, 'createSchool'])->name('admin.settings.create-school');
 
-    // Email Templates (Super Admin only placeholder)
+    // Email Templates (Super Admin only)
     Route::get('/admin/email-templates', [\App\Http\Controllers\Admin\EmailTemplateController::class, 'index'])->name('admin.email-templates.index');
+    Route::get('/admin/email-templates/create', [\App\Http\Controllers\Admin\EmailTemplateController::class, 'create'])->name('admin.email-templates.create');
+    Route::post('/admin/email-templates', [\App\Http\Controllers\Admin\EmailTemplateController::class, 'store'])->name('admin.email-templates.store');
+    Route::get('/admin/email-templates/{emailTemplate}/edit', [\App\Http\Controllers\Admin\EmailTemplateController::class, 'edit'])->name('admin.email-templates.edit');
+    Route::put('/admin/email-templates/{emailTemplate}', [\App\Http\Controllers\Admin\EmailTemplateController::class, 'update'])->name('admin.email-templates.update');
+    Route::delete('/admin/email-templates/{emailTemplate}', [\App\Http\Controllers\Admin\EmailTemplateController::class, 'destroy'])->name('admin.email-templates.destroy');
     
     // Course Management routes
     Route::get('/admin/course-management', [CourseManagementController::class, 'index'])->name('admin.course_management');

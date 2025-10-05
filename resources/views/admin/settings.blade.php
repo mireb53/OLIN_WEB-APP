@@ -287,10 +287,7 @@
                     <div class="flex flex-col gap-2">
                         <label for="timezone" class="font-medium text-slate-600">Timezone</label>
                         <select id="timezone" name="timezone" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500">
-                            {{-- Example timezones --}}
-                            <option value="UTC" {{ old('timezone', $globalSettings->timezone ?? 'UTC') == 'UTC' ? 'selected' : '' }}>UTC</option>
-                            <option value="America/New_York" {{ old('timezone', $globalSettings->timezone ?? '') == 'America/New_York' ? 'selected' : '' }}>America/New_York</option>
-                            <option value="Asia/Manila" {{ old('timezone', $globalSettings->timezone ?? '') == 'Asia/Manila' ? 'selected' : '' }}>Asia/Manila</option>
+                            <option value="Asia/Manila" selected>UTC+8</option>
                         </select>
                         <p class="text-xs text-slate-500">Sets the default timezone for dates.</p>
                     </div>
@@ -341,20 +338,148 @@
                     <h2 class="text-xl font-semibold text-slate-700 uppercase tracking-wider">Email Templates</h2>
                     <span class="ml-3 px-3 py-1 bg-red-100 text-red-700 text-xs font-semibold rounded-full">Super Admin Only</span>
                 </div>
-                
-                <div class="bg-gray-50 rounded-lg p-6 border border-gray-200">
-                    <div class="flex items-center justify-between">
-                        <div>
-                            <h3 class="font-semibold text-slate-800">Customize System Emails</h3>
-                            <p class="text-sm text-slate-600 mt-1">Modify the content of emails sent to users, such as verification and welcome messages.</p>
+
+                <div class="mb-4 p-4 rounded-lg bg-slate-50 border border-slate-200 text-slate-700">
+                    <p class="text-sm">
+                        The system will use customized templates when available; otherwise it falls back to the default content below.
+                    </p>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    <!-- 1) Account Verification / First Login Email -->
+                    <div class="rounded-lg border border-gray-200 p-5 bg-white">
+                        <div class="flex items-start justify-between mb-3">
+                            <div>
+                                <h3 class="font-semibold text-slate-800">Account Verification / First Login</h3>
+                                <p class="text-xs text-slate-500">Sent on first login via Google or admin registration</p>
+                            </div>
+                            <span class="text-xs px-2 py-0.5 rounded-full bg-slate-100 text-slate-700">Status: Default</span>
                         </div>
-                        <a href="{{ route('admin.email-templates.index') }}" 
-                           class="py-2 px-5 bg-slate-600 text-white font-semibold rounded-lg shadow-sm hover:bg-slate-700 transition-colors duration-300">
-                           Manage Templates
-                        </a>
+                        <p class="text-sm text-slate-600 mb-4">Confirms user’s email and welcomes them to OLIN LMS.</p>
+                        <div class="flex items-center gap-2">
+                            <button type="button" onclick="openEmailPreview('tmpl-verify')" class="px-3 py-2 text-sm bg-slate-600 text-white rounded-lg hover:bg-slate-700">Preview default</button>
+                            <a href="{{ url('/admin/email-templates') }}" class="px-3 py-2 text-sm bg-white border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50">Manage</a>
+                        </div>
+                    </div>
+
+                    <!-- 2) Course Edit/Delete Verification (Admin–Instructor Security) -->
+                    <div class="rounded-lg border border-gray-200 p-5 bg-white">
+                        <div class="flex items-start justify-between mb-3">
+                            <div>
+                                <h3 class="font-semibold text-slate-800">Course Action Verification</h3>
+                                <p class="text-xs text-slate-500">Triggered when admin edits/deletes instructor’s course</p>
+                            </div>
+                            <span class="text-xs px-2 py-0.5 rounded-full bg-slate-100 text-slate-700">Status: Default</span>
+                        </div>
+                        <p class="text-sm text-slate-600 mb-4">Sends a verification code to instructor to confirm admin action.</p>
+                        <div class="flex items-center gap-2">
+                            <button type="button" onclick="openEmailPreview('tmpl-course-action')" class="px-3 py-2 text-sm bg-slate-600 text-white rounded-lg hover:bg-slate-700">Preview default</button>
+                            <a href="{{ url('/admin/email-templates') }}" class="px-3 py-2 text-sm bg-white border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50">Manage</a>
+                        </div>
+                    </div>
+
+                    <!-- 3) Manual / General Notification Email -->
+                    <div class="rounded-lg border border-gray-200 p-5 bg-white">
+                        <div class="flex items-start justify-between mb-3">
+                            <div>
+                                <h3 class="font-semibold text-slate-800">General Notification</h3>
+                                <p class="text-xs text-slate-500">Reusable template for manual notices</p>
+                            </div>
+                            <span class="text-xs px-2 py-0.5 rounded-full bg-slate-100 text-slate-700">Status: Default</span>
+                        </div>
+                        <p class="text-sm text-slate-600 mb-4">Announcements, reminders, or account-related alerts.</p>
+                        <div class="flex items-center gap-2">
+                            <button type="button" onclick="openEmailPreview('tmpl-general')" class="px-3 py-2 text-sm bg-slate-600 text-white rounded-lg hover:bg-slate-700">Preview default</button>
+                            <a href="{{ url('/admin/email-templates') }}" class="px-3 py-2 text-sm bg-white border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50">Manage</a>
+                        </div>
                     </div>
                 </div>
+
+                <div class="mt-6 flex items-center justify-between bg-gray-50 rounded-lg p-4 border border-gray-200">
+                    <div>
+                        <p class="text-sm text-slate-600">
+                            Customize templates under Email Templates Manager. If a custom version exists in the database, it will override the defaults.
+                        </p>
+                    </div>
+                    <a href="{{ url('/admin/email-templates') }}" class="py-2 px-4 bg-slate-700 text-white rounded-lg text-sm hover:bg-slate-800">Open Manager</a>
+                </div>
             </section>
+
+            <!-- Preview Modals -->
+            <div id="emailPreviewModal" class="fixed inset-0 hidden z-50">
+                <div class="absolute inset-0 bg-slate-900/40" onclick="closeEmailPreview()"></div>
+                <div class="relative max-w-2xl w-full mx-auto mt-20 bg-white rounded-xl shadow-xl border border-gray-200">
+                    <div class="flex items-center justify-between px-5 py-4 border-b border-gray-200">
+                        <h3 id="emailPreviewTitle" class="text-lg font-semibold text-slate-800">Preview</h3>
+                        <button onclick="closeEmailPreview()" class="text-slate-500 hover:text-slate-700">✕</button>
+                    </div>
+                    <div class="px-5 py-4">
+                        <div class="mb-3">
+                            <p class="text-xs uppercase text-slate-500">Subject</p>
+                            <p id="emailPreviewSubject" class="text-sm font-medium text-slate-800">—</p>
+                        </div>
+                        <div>
+                            <p class="text-xs uppercase text-slate-500">Body</p>
+                            <div id="emailPreviewBody" class="prose prose-sm max-w-none text-slate-800">
+                                —
+                            </div>
+                        </div>
+                    </div>
+                    <div class="px-5 py-4 border-t border-gray-200 flex justify-end">
+                        <button class="px-3 py-2 text-sm bg-slate-600 text-white rounded-lg hover:bg-slate-700" onclick="closeEmailPreview()">Close</button>
+                    </div>
+                </div>
+            </div>
+            @verbatim
+            <script>
+                const DEFAULT_TEMPLATES = {
+                    'tmpl-verify': {
+                        title: 'Account Verification / First Login',
+                        subject: 'Welcome to OLIN LMS – Verify Your Account',
+                        body: `
+                            <p>Hi <strong>{{'{{user_name}}'}}</strong>,</p>
+                            <p>Welcome to OLIN LMS! Please click the button below to verify your account.</p>
+                            <p style="margin: 16px 0;">
+                                <a href="#" style="background:#4f46e5;color:#fff;padding:10px 16px;border-radius:8px;text-decoration:none;display:inline-block">Verify Account</a>
+                            </p>
+                            <p>Thank you,<br/>OLIN LMS Team</p>
+                        `
+                    },
+                    'tmpl-course-action': {
+                        title: 'Course Action Verification',
+                        subject: 'Course Action Verification Required',
+                        body: `
+                            <p>Hi <strong>{{'{{instructor_name}}'}}</strong>,</p>
+                            <p>An admin has requested to <strong>{{'{{action}}'}}</strong> your course titled "<strong>{{'{{course_name}}'}}</strong>".</p>
+                            <p>Please enter the following verification code to confirm this action:</p>
+                            <p><strong>Verification Code: {{'{{verification_code}}'}}</strong></p>
+                            <p>If you did not request this action, please ignore this message.</p>
+                        `
+                    },
+                    'tmpl-general': {
+                        title: 'General Notification',
+                        subject: '{{'{{subject}}'}}',
+                        body: `
+                            <p>Dear <strong>{{'{{user_name}}'}}</strong>,</p>
+                            <p>{{'{{message_content}}'}}</p>
+                            <p>Regards,<br/>OLIN LMS Team</p>
+                        `
+                    }
+                };
+                function openEmailPreview(key){
+                    const modal = document.getElementById('emailPreviewModal');
+                    const t = DEFAULT_TEMPLATES[key];
+                    if(!t) return;
+                    document.getElementById('emailPreviewTitle').textContent = t.title;
+                    document.getElementById('emailPreviewSubject').textContent = t.subject;
+                    document.getElementById('emailPreviewBody').innerHTML = t.body;
+                    modal.classList.remove('hidden');
+                }
+                function closeEmailPreview(){
+                    document.getElementById('emailPreviewModal').classList.add('hidden');
+                }
+            </script>
+            @endverbatim
             @endif
 
             {{-- Action Buttons --}}
