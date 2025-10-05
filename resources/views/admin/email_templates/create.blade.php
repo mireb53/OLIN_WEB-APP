@@ -23,7 +23,7 @@
             </div>
             <div class="mb-4">
                 <label class="block text-slate-700 font-semibold mb-1">HTML Body <span class="text-red-600">*</span></label>
-                <textarea name="body_html" rows="12" class="w-full border rounded-lg px-3 py-2" placeholder="Use variables like @{{ user_name }} or @{{ verification_code }}" required>{{ old('body_html') }}</textarea>
+                <textarea name="body_html" rows="12" class="w-full border rounded-lg px-3 py-2" placeholder="Use variables like @{{ app_name }}, @{{ user_name }}, @{{ verification_code }}, @{{ verify_url }}" required>{{ old('body_html') }}</textarea>
                 @error('body_html')<p class="text-red-600 text-sm mt-1">{{ $message }}</p>@enderror
             </div>
             <div class="mb-4">

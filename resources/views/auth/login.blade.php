@@ -64,7 +64,7 @@
           {{-- Google Login --}}
           <a href="{{ route('socialite.google.redirect') }}" class="btn google-login">
             <img src="https://developers.google.com/identity/images/g-logo.png" alt="Google Logo">
-            Sign in with Google
+            Continue with Google (School Account)
           </a>
         </form>
 

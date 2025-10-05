@@ -7,6 +7,8 @@ use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Support\Facades\View;
 use App\Models\EmailTemplate;
+use App\Models\Setting;
+use Illuminate\Support\Facades\URL;
 use Illuminate\Notifications\Notification;
 
 class VerifyEmailWithCode extends Notification
@@ -41,15 +43,37 @@ class VerifyEmailWithCode extends Notification
         // Try DB template first
         $tpl = EmailTemplate::where(['key' => 'verify_email', 'school_id' => null, 'is_active' => true])->first();
         if ($tpl) {
+            // Resolve variables
+            $appName = config('app.name');
+            try {
+                if (\Schema::hasTable('settings')) {
+                    $global = Setting::whereNull('school_id')->first();
+                    if ($global && !empty($global->platform_name)) {
+                        $appName = $global->platform_name;
+                    }
+                }
+            } catch (\Throwable $e) {
+                // use config fallback
+            }
+            $verifyUrl = URL::route('verification.notice');
+            $vars = [
+                'app_name' => $appName,
+                'user_name' => $notifiable->name ?? 'User',
+                'verification_code' => $this->verificationCode,
+                'expire_minutes' => config('auth.verification.expire', 60),
+                'verify_url' => $verifyUrl,
+            ];
+
+            // Process subject placeholders
             $subject = $tpl->subject;
+            foreach ($vars as $k => $v) {
+                $subject = str_replace('{{'.$k.'}}', (string) $v, $subject);
+                $subject = str_replace('{{ '.$k.' }}', (string) $v, $subject);
+            }
             // Render HTML using a generic view wrapper that accepts raw HTML
             $html = View::make('emails.dynamic_template', [
                 'html' => $tpl->body_html,
-                'vars' => [
-                    'user_name' => $notifiable->name ?? 'User',
-                    'verification_code' => $this->verificationCode,
-                    'expire_minutes' => config('auth.verification.expire', 60),
-                ],
+                'vars' => $vars,
             ])->render();
 
             return (new MailMessage)

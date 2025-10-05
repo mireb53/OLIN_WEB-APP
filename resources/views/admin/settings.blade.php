@@ -217,6 +217,15 @@
                 {{-- Academic Periods/Semesters --}}
                 <div>
                     <h3 class="text-lg font-semibold text-slate-800 mb-4 border-b pb-2">Academic Period</h3>
+                    <!-- Purpose and usage helper -->
+                    <div class="mb-4 text-sm text-slate-600 bg-slate-50 border border-slate-200 rounded-lg p-4">
+                        <p class="font-medium text-slate-700 mb-2">Purpose and how you can use it</p>
+                        <ul class="list-disc ml-5 space-y-1">
+                            <li>Display the current term/year on dashboards or reports.</li>
+                            <li>Date‑range logic (e.g., show activity within the current semester dates).</li>
+                            <li>Future automation like restricting new enrollments or scheduling notifications based on the current academic window.</li>
+                        </ul>
+                    </div>
                     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                         <div class="flex flex-col gap-2">
                             <label for="current_semester" class="font-medium text-slate-600">Current Semester/Term</label>
@@ -234,7 +243,7 @@
                                    class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500"
                                    placeholder="e.g., 2024-2025"
                                    pattern="\d{4}-\d{4}">
-                            <p class="text-xs text-slate-500">Format: YYYY-YYYY.</p>
+                            <p class="text-xs text-slate-500">Format: YYYY-YYYY. <span id="academic_year_hint" class="text-slate-400"></span></p>
                         </div>
                         
                         <div class="flex flex-col gap-2">
@@ -531,19 +540,50 @@
                 createSchoolForm1.addEventListener('submit', handleCreateSchoolSubmit);
             }
             
-            // Academic year format validation
+            // Academic year format validation + live hint/auto-format
             const academicYearInput = document.getElementById('academic_year');
             if (academicYearInput) {
+                const hint = document.getElementById('academic_year_hint');
+
+                function formatAcademicYear(raw) {
+                    const digits = raw.replace(/[^0-9]/g, '').slice(0, 8);
+                    if (digits.length <= 4) return digits;
+                    return digits.slice(0,4) + '-' + digits.slice(4);
+                }
+
+                function computeNextYear(yyyy) {
+                    const n = parseInt(yyyy, 10);
+                    if (Number.isNaN(n)) return '';
+                    return String(n + 1);
+                }
+
+                function updateHint(val) {
+                    if (!hint) return;
+                    const m = val.match(/^(\d{4})-(\d{0,4})$/);
+                    if (m && m[1] && (!m[2] || m[2].length < 4)) {
+                        // Suggest the next year as the second half
+                        hint.textContent = 'Tip: ' + m[1] + '-' + computeNextYear(m[1]);
+                    } else {
+                        hint.textContent = '';
+                    }
+                }
+
                 academicYearInput.addEventListener('input', function() {
-                    const value = this.value;
+                    const before = this.value;
+                    const formatted = formatAcademicYear(before);
+                    if (formatted !== before) this.value = formatted;
+
                     const pattern = /^\d{4}-\d{4}$/;
-                    
-                    if (value && !pattern.test(value)) {
+                    updateHint(this.value);
+                    if (this.value && !pattern.test(this.value)) {
                         this.setCustomValidity('Please use the format YYYY-YYYY (e.g., 2024-2025)');
                     } else {
                         this.setCustomValidity('');
                     }
                 });
+
+                // Initialize hint on load
+                updateHint(academicYearInput.value || '');
             }
 
             // File size validation

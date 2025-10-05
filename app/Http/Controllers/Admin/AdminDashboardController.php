@@ -15,6 +15,7 @@ use App\Models\School;
 use App\Models\Announcement;
 use App\Models\Program;
 use Carbon\Carbon;
+use App\Models\Setting;
 
 class AdminDashboardController extends Controller
 {
@@ -52,6 +53,20 @@ class AdminDashboardController extends Controller
         $stats = $needsSchoolSelection ? [] : $this->getDashboardStats($activeSchoolId);
         $recentActivities = $needsSchoolSelection ? [] : $this->getRecentActivities($activeSchoolId);
         $systemHealth = $this->getSystemHealth();
+        // Load school/global settings for term timeline badge
+        $schoolSettings = null;
+        try {
+            if (\Schema::hasTable('settings')) {
+                if ($activeSchoolId) {
+                    $schoolSettings = Setting::where('school_id', $activeSchoolId)->first();
+                }
+                if (!$schoolSettings) {
+                    $schoolSettings = Setting::whereNull('school_id')->first();
+                }
+            }
+        } catch (\Throwable $e) {
+            $schoolSettings = null; // safe fallback
+        }
         $availableSchools = $user->isSuperAdmin() ? School::orderBy('name')->get() : collect();
         $announcements = $needsSchoolSelection ? collect() : $this->getAnnouncements($activeSchoolId);
         $programs = Program::orderBy('name')->get();
@@ -64,7 +79,8 @@ class AdminDashboardController extends Controller
             'availableSchools',
             'needsSchoolSelection',
             'announcements',
-            'programs'
+            'programs',
+            'schoolSettings'
         ));
     }
 

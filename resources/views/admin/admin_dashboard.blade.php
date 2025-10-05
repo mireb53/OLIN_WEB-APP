@@ -184,6 +184,36 @@
                     <p class="text-xs text-gray-400">{{ config('app.timezone') }}</p>
                 </div>
 
+                @php
+                    $status = null;
+                    if (isset($schoolSettings) && $schoolSettings) {
+                        $status = method_exists($schoolSettings, 'getCurrentSemesterStatus') ? $schoolSettings->getCurrentSemesterStatus() : null;
+                    }
+                    $badgeText = '';
+                    $badgeClasses = 'bg-gray-100 text-gray-700';
+                    if ($status === 'ongoing') {
+                        $badgeText = 'Term timeline: Ongoing';
+                        $badgeClasses = 'bg-green-100 text-green-800';
+                    } elseif ($status === 'upcoming') {
+                        $badgeText = 'Term timeline: Upcoming';
+                        $badgeClasses = 'bg-yellow-100 text-yellow-800';
+                    } elseif ($status === 'ended') {
+                        $badgeText = 'Term timeline: Ended';
+                        $badgeClasses = 'bg-red-100 text-red-800';
+                    } elseif ($status === 'unknown') {
+                        $badgeText = 'Term timeline: Set dates in Settings';
+                        $badgeClasses = 'bg-gray-100 text-gray-700';
+                    }
+                @endphp
+                @if($status)
+                    <div class="hidden sm:flex items-center {{ $badgeClasses }} rounded-full px-3 py-2" title="Based on Academic Period settings">
+                        <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3M5 21h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v11a2 2 0 002 2z"/>
+                        </svg>
+                        <span class="text-xs font-medium">{{ $badgeText }}</span>
+                    </div>
+                @endif
+
                 @php $user = Auth::user(); @endphp
                 @if((method_exists($user, 'isSuperAdmin') && $user->isSuperAdmin()) || (method_exists($user, 'isSchoolAdmin') && $user->isSchoolAdmin()))
                     <div class="hidden sm:flex items-center bg-blue-50 border border-blue-200 text-blue-700 rounded-full px-3 py-2" title="Active School Context">
