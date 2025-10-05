@@ -458,11 +458,17 @@
             <tr class="border-t align-top">
               <td class="px-2 py-2 text-xs whitespace-nowrap">{{ $log['timestamp'] }}</td>
               <td class="px-2 py-2">
-                <span class="text-[10px] font-semibold px-2 py-1 rounded inline-block
-                  @if($log['level']==='ERROR') bg-red-100 text-red-700
-                  @elseif($log['level']==='WARNING') bg-yellow-100 text-yellow-700
-                  @elseif($log['level']==='DEBUG') bg-gray-200 text-gray-700
-                  @else bg-green-100 text-green-700 @endif">{{ $log['level'] }}</span>
+                @php
+                    $lvl = strtoupper($log['level'] ?? '');
+                    $levelMap = [
+                        'ERROR' => 'bg-red-100 text-red-700',
+                        'WARNING' => 'bg-yellow-100 text-yellow-700',
+                        'DEBUG' => 'bg-gray-200 text-gray-700',
+                        'INFO' => 'bg-green-100 text-green-700',
+                    ];
+                    $levelClass = $levelMap[$lvl] ?? 'bg-green-100 text-green-700';
+                @endphp
+                <span class="text-[10px] font-semibold px-2 py-1 rounded inline-block {{ $levelClass }}">{{ $lvl }}</span>
               </td>
               <td class="px-2 py-2 text-sm">
                 <div class="font-medium break-words">{{ Str::limit($log['message'],180) }}</div>
@@ -704,10 +710,12 @@
     function escapeHtml(str){ return str ? str.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'}[c]||c)) : ''; }
     function truncate(str, n){ return (str && str.length>n)? str.slice(0,n-1)+'…' : (str||''); }
 
-    function renderLogs(meta){
+  function renderLogs(meta){
       if(!logsBody) return; // section may be conditionally present
-      logsState.pages = meta.pages || 1;
-      logsState.page = meta.page || 1;
+  logsState.page = meta.page || 1;
+  const total = meta.total || 0;
+  const perPage = meta.perPage || meta.per_page || logsState.perPage;
+  logsState.pages = Math.max(1, Math.ceil(total / Math.max(1, perPage)));
       logsBody.innerHTML = '';
       if(!meta.data || meta.data.length===0){
         logsBody.innerHTML = '<tr><td colspan="4" class="px-2 py-4 text-center text-gray-400">No log entries found.</td></tr>';
@@ -715,10 +723,11 @@
         meta.data.forEach(entry => {
           const tr = document.createElement('tr');
           tr.className = 'border-t align-top';
-          const levelBadgeClass = entry.level==='ERROR' ? 'bg-red-100 text-red-700' : (entry.level==='WARNING' ? 'bg-yellow-100 text-yellow-700' : (entry.level==='DEBUG' ? 'bg-gray-200 text-gray-700' : 'bg-green-100 text-green-700'));
+          const lvl = (entry.level || '').toString().toUpperCase();
+          const levelBadgeClass = lvl==='ERROR' ? 'bg-red-100 text-red-700' : (lvl==='WARNING' ? 'bg-yellow-100 text-yellow-700' : (lvl==='DEBUG' ? 'bg-gray-200 text-gray-700' : 'bg-green-100 text-green-700'));
           tr.innerHTML = `
             <td class="px-2 py-2 text-xs whitespace-nowrap">${escapeHtml(entry.timestamp)}</td>
-            <td class="px-2 py-2"><span class="text-[10px] font-semibold px-2 py-1 rounded inline-block ${levelBadgeClass}">${escapeHtml(entry.level)}</span></td>
+            <td class="px-2 py-2"><span class="text-[10px] font-semibold px-2 py-1 rounded inline-block ${levelBadgeClass}">${escapeHtml(lvl)}</span></td>
             <td class="px-2 py-2 text-sm">
               <div class="font-medium break-words">${escapeHtml(truncate(entry.message,180))}</div>
               ${entry.context ? `<pre class="hidden whitespace-pre-wrap mt-2 text-xs bg-gray-50 p-2 rounded border context-block">${escapeHtml(entry.context)}</pre>`: ''}
@@ -746,7 +755,7 @@
     }
 
     function fetchLogs(){
-      const payload = { page: logsState.page, level: logsState.level, search: logsState.search, date: logsState.date, perPage: logsState.perPage, _token: '{{ csrf_token() }}' };
+  const payload = { page: logsState.page, level: logsState.level, search: logsState.search, date: logsState.date, per_page: logsState.perPage, _token: '{{ csrf_token() }}' };
       fetch('{{ route('admin.reports.systemLogs') }}', { method:'POST', headers:{'Content-Type':'application/json','X-CSRF-TOKEN':'{{ csrf_token() }}'}, body: JSON.stringify(payload) })
         .then(r=>r.json())
         .then(data=>{ renderLogs(data); })
