@@ -929,6 +929,26 @@ class InstructorController extends Controller
         ];
         
         $activities = $this->getRecentActivities($courses, $dateRange);
+
+        // Pull recent announcements for this instructor's school (last 30 days)
+        try {
+            $announcements = \App\Models\Announcement::active()
+                ->forSchool($instructor->school_id)
+                ->where('created_at', '>=', $dateRange['startDate'])
+                ->orderBy('created_at', 'desc')
+                ->limit(20)
+                ->get()
+                ->map(function($a){
+                    return [
+                        'type' => 'announcement',
+                        'description' => 'New announcement: ' . $a->title,
+                        'date' => $a->created_at,
+                    ];
+                });
+            $activities = $activities->concat($announcements);
+        } catch (\Throwable $e) {
+            // ignore
+        }
         
         // Use DB-backed read tracking like capstone_webDashboard-B
         $readNotificationHashes = \App\Models\InstructorNotification::where('instructor_id', $instructor->id)

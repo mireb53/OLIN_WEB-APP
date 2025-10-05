@@ -279,6 +279,7 @@ class AdminDashboardController extends Controller
         $usedStorage = $this->calculateUsedStorage();
         $storagePercentage = ($usedStorage / $totalStorage) * 100;
 
+        $server = $this->getServerStatus();
         return [
             'storage_used' => $this->formatBytes($usedStorage),
             'storage_total' => $this->formatBytes($totalStorage),
@@ -287,6 +288,10 @@ class AdminDashboardController extends Controller
             'last_backup' => $this->getLastBackupTime(),
             'database_size' => $this->getDatabaseSize(),
             'total_files' => $this->getTotalFiles(),
+            // New server status details
+            'server_online' => $server['online'] ?? false,
+            'server_load' => $server['load'] ?? null,
+            'memory_usage' => $server['memory'] ?? null,
         ];
     }
 
@@ -344,10 +349,19 @@ class AdminDashboardController extends Controller
         if (is_numeric($value)) return (int)$value;
         $str = trim(strtolower((string)$value));
         if ($str === '') return 0;
-        if (preg_match('/^([\d.]+)\s*(b|kb|mb|gb|tb)$/i', $str, $m)) {
+        // Support PHP ini shorthand like 512M, 2G, 128K
+        if (preg_match('/^([\d.]+)\s*([kmgt]?b?)$/i', $str, $m)) {
             $num = (float)$m[1];
             $unit = strtolower($m[2]);
-            $pow = ['b'=>0,'kb'=>1,'mb'=>2,'gb'=>3,'tb'=>4][$unit] ?? 0;
+            // Normalize unit
+            $map = [
+                'b' => 0, '' => 0,
+                'k' => 1, 'kb' => 1,
+                'm' => 2, 'mb' => 2,
+                'g' => 3, 'gb' => 3,
+                't' => 4, 'tb' => 4,
+            ];
+            $pow = $map[$unit] ?? 0;
             return (int) round($num * pow(1024, $pow));
         }
         // fallback: try to cast
@@ -360,6 +374,41 @@ class AdminDashboardController extends Controller
     private function getServerUptime()
     {
         return function_exists('sys_getloadavg') ? '99.9%' : 'N/A';
+    }
+
+    /**
+     * Server status details: online flag, CPU load, memory usage.
+     */
+    private function getServerStatus(): array
+    {
+        $online = true; // if we can run this code, app is up
+        $loadStr = null;
+        $memStr = null;
+
+        // CPU load (if available)
+        try {
+            if (function_exists('sys_getloadavg')) {
+                $load = sys_getloadavg();
+                if (is_array($load) && count($load) >= 1) {
+                    $loadStr = number_format($load[0], 2);
+                }
+            }
+        } catch (\Throwable $e) {}
+
+        // Memory usage (PHP process memory as a proxy)
+        try {
+            if (function_exists('memory_get_usage')) {
+                $usage = memory_get_usage(true);
+                $limit = $this->parseByteString(ini_get('memory_limit'));
+                $memStr = $this->formatBytes($usage) . ' / ' . ($limit > 0 ? $this->formatBytes($limit) : '∞');
+            }
+        } catch (\Throwable $e) {}
+
+        return [
+            'online' => $online,
+            'load' => $loadStr,
+            'memory' => $memStr,
+        ];
     }
 
     /**
@@ -570,14 +619,16 @@ class AdminDashboardController extends Controller
         $request->validate([
             'title' => 'required|string|max:255',
             'message' => 'required|string',
-            'is_pinned' => 'boolean',
-            'expires_at' => 'nullable|date|after:now'
+            // Checkbox typically posts "on"; use accepted so it validates
+            'is_pinned' => 'sometimes|accepted',
+            // Allow equal to now to avoid race conditions when posting current minute
+            'expires_at' => 'nullable|date|after_or_equal:now'
         ]);
 
         $user = Auth::user();
         $activeSchool = $this->getActiveSchool();
 
-        Announcement::create([
+        $announcement = Announcement::create([
             'title' => $request->title,
             'message' => $request->message,
             'author_id' => $user->id,
@@ -587,8 +638,43 @@ class AdminDashboardController extends Controller
             'status' => 'active'
         ]);
 
+        // Notify instructors and students (within active school if set) via Notification model
+        try {
+            $targetUsers = \App\Models\User::query()
+                ->whereIn('role', ['instructor','student'])
+                ->when($activeSchool, function($q) use ($activeSchool) {
+                    $q->where('school_id', $activeSchool->id);
+                })
+                ->select('id')
+                ->get();
+
+            if ($targetUsers->count() > 0) {
+                $now = now();
+                $title = 'Announcement: ' . $request->title;
+                $msg = str($request->message)->limit(200);
+                $rows = [];
+                foreach ($targetUsers as $tu) {
+                    $rows[] = [
+                        'user_id' => $tu->id,
+                        'type' => 'announcement',
+                        'title' => $title,
+                        'message' => (string)$msg,
+                        'is_read' => false,
+                        'created_at' => $now,
+                        'updated_at' => $now,
+                    ];
+                }
+                // Chunk insert to avoid large single insert
+                foreach (array_chunk($rows, 1000) as $chunk) {
+                    \App\Models\Notification::insert($chunk);
+                }
+            }
+        } catch (\Throwable $e) {
+            // Don't block posting on notification issues
+        }
+
         if ($request->wantsJson()) {
-            return response()->json(['success' => true, 'message' => 'Announcement posted successfully!']);
+            return response()->json(['success' => true, 'message' => 'Announcement posted successfully!', 'announcement_id' => $announcement->id]);
         }
 
         return back()->with('success', 'Announcement posted successfully!');

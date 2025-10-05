@@ -140,6 +140,19 @@ class SocialLoginController extends Controller
                 return redirect('/login')->with('error', 'Your account is not registered. Please contact your administrator.');
             }
 
+            // Update last/previous login when completing login (outside verification flow)
+            try {
+                // Only set timestamps when the user is fully logged in (email verified or no verification required)
+                if (!is_null($user->email_verified_at) || (method_exists($user, 'hasVerifiedEmail') && $user->hasVerifiedEmail())) {
+                    $user->update([
+                        'previous_login_at' => $user->last_login_at,
+                        'last_login_at' => now(),
+                    ]);
+                }
+            } catch (\Throwable $e) {
+                // no-op on failure
+            }
+
             // Redirect to the intended dashboard after login/registration
             if ($user->role === 'admin' || $user->role === 'super_admin' || $user->role === 'school_admin') {
                 return redirect()->intended('/admin/dashboard');

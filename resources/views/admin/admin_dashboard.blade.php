@@ -298,7 +298,7 @@
                             <p class="text-gray-600">Real-time monitoring and security overview</p>
                         </div>
                     </div>
-                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
                         {{-- Storage Used vs Available --}}
                         <div class="bg-gradient-to-br from-slate-50 to-slate-100 rounded-2xl p-6 border border-slate-200">
                             <div class="flex items-center justify-between mb-4">
@@ -321,7 +321,7 @@
                                 <p class="text-xs text-slate-500 mt-1">{{ $pctClamped }}% of storage used</p>
                             </div>
                         </div>
-                        {{-- Last Login (Hybrid format) --}}
+                        {{-- Last Login (with Previous Login) --}}
                         <div class="bg-gradient-to-br from-blue-50 to-blue-100 rounded-2xl p-6 border border-blue-200">
                             <div class="flex items-center justify-between mb-4">
                                 <div class="w-12 h-12 bg-blue-500 rounded-xl flex items-center justify-center">
@@ -352,6 +352,9 @@
                                     @endphp
                                     <p class="text-sm text-blue-900 font-semibold">
                                         {{ $actor->name }} ({{ $roleText }}) - {{ $actor->last_login_at->diffForHumans() }}
+                                    </p>
+                                    <p class="text-xs text-blue-700 mt-1">
+                                        Previous Login: {{ $actor->previous_login_at ? $actor->previous_login_at->diffForHumans() : '—' }}
                                     </p>
                                 @else
                                     <p class="text-sm text-blue-600">Never</p>
@@ -389,8 +392,35 @@
                                 </div>
                             </div>
                         </div>
-
-                        
+                        {{-- Server Status --}}
+                        <div class="bg-gradient-to-br from-emerald-50 to-emerald-100 rounded-2xl p-6 border border-emerald-200">
+                            <div class="flex items-center justify-between mb-4">
+                                <div class="w-12 h-12 bg-emerald-500 rounded-xl flex items-center justify-center">
+                                    <span class="text-2xl">🖥️</span>
+                                </div>
+                            </div>
+                            @php
+                                $online = $systemHealth['server_online'] ?? ($health['server_online'] ?? false);
+                                $uptime = $systemHealth['server_uptime'] ?? ($health['server_uptime'] ?? 'N/A');
+                                $load = $systemHealth['server_load'] ?? ($health['server_load'] ?? null);
+                                $mem = $systemHealth['memory_usage'] ?? ($health['memory_usage'] ?? null);
+                            @endphp
+                            <div>
+                                <p class="text-sm font-medium {{ $online ? 'text-emerald-700' : 'text-red-700' }} mb-1">Server Status</p>
+                                <p class="text-3xl font-bold {{ $online ? 'text-emerald-900' : 'text-red-900' }} mb-2">
+                                    {{ $online ? 'Online' : 'Offline' }}
+                                </p>
+                                <div class="space-y-1 text-sm">
+                                    <p class="text-slate-700">Uptime: <span class="font-medium">{{ $uptime }}</span></p>
+                                    @if($load)
+                                        <p class="text-slate-700">CPU Load: <span class="font-medium">{{ $load }}</span></p>
+                                    @endif
+                                    @if($mem)
+                                        <p class="text-slate-700">Memory: <span class="font-medium">{{ $mem }}</span></p>
+                                    @endif
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </section>

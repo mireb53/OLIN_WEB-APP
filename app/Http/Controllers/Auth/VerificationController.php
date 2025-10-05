@@ -32,8 +32,15 @@ class VerificationController extends Controller
                 'email_verification_code_expires_at' => null,
             ])->save();
 
-            // Update last login timestamp now that verification is successful
-            $user->update(['last_login_at' => now()]);
+            // Update previous/last login timestamps now that verification is successful
+            try {
+                $user->update([
+                    'previous_login_at' => $user->last_login_at,
+                    'last_login_at' => now(),
+                ]);
+            } catch (\Throwable $e) {
+                $user->update(['last_login_at' => now()]);
+            }
 
             // Redirect based on role
             if ($user->role === 'admin' || $user->role === 'super_admin' || $user->role === 'school_admin') {

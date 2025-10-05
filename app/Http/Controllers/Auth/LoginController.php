@@ -63,8 +63,16 @@ class LoginController extends Controller
                     ->with('status', 'We sent a verification code to your email. Please enter it to continue.');
             }
 
-            // Email already verified: update last login and proceed
-            $user->update(['last_login_at' => now()]);
+            // Email already verified: update previous and last login and proceed
+            try {
+                $user->update([
+                    'previous_login_at' => $user->last_login_at,
+                    'last_login_at' => now(),
+                ]);
+            } catch (\Throwable $e) {
+                // Fallback if column missing, keep previous behavior
+                $user->update(['last_login_at' => now()]);
+            }
 
             if (in_array($user->role, ['admin','super_admin','school_admin'])) {
                 return redirect()->intended('/admin/dashboard'); 
